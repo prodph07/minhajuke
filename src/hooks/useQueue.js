@@ -119,26 +119,44 @@ export function useQueue() {
 
         if (!establishment) throw new Error('Establishment not found');
 
-        // Time window: 10 minutes ago
-        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const settings = establishment.settings || {};
+        const maxRequests = settings.max_requests_per_user || 3;
+        const windowMinutes = settings.limit_window_minutes || 10;
+
+        // Time window: X minutes ago
+        const timeWindow = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
 
         const { count, error } = await supabase
             .from('queue')
             .select('*', { count: 'exact', head: true })
-            .eq('establishment_id', establishment.id) // Scope to establishment
+            .eq('establishment_id', establishment.id)
             .eq('user_id', userId)
-            .gte('created_at', tenMinutesAgo);
+            .gte('created_at', timeWindow);
 
         if (error) {
             console.error('Rate limit check error:', error);
+            // Fail open (allow) if DB error? Or fail closed? Allowing for now.
             return true;
         }
 
-        if (count >= 3) {
-            throw new Error('Você atingiu o limite de 3 músicas a cada 10 minutos! Dê uma chance aos outros.');
+        if (count >= maxRequests) {
+            throw new Error(`Limite atingido! Você só pode pedir ${maxRequests} músicas a cada ${windowMinutes} minutos.`);
         }
 
         return true;
+    };
+
+    const checkRules = (video) => {
+        const settings = establishment.settings || {};
+        const forbidden = settings.forbidden_keywords || [];
+
+        // Blacklist Check
+        const titleLower = video.title.toLowerCase();
+        for (const word of forbidden) {
+            if (titleLower.includes(word.toLowerCase())) {
+                throw new Error(`Música bloqueada! O termo "${word}" não é permitido neste estabelecimento.`);
+            }
+        }
     };
 
     const addToQueue = async (video) => {
@@ -149,14 +167,25 @@ export function useQueue() {
 
         const userId = getUserId();
 
-        // 1. Check Limits
+        // 1. Static Checks (Blacklist)
+        checkRules(video);
+
+        // 2. Rate Limits
         await checkRateLimit(userId);
 
-        // 2. Fetch Duration from YouTube API
+        // 3. Fetch Duration from YouTube API
         const details = await getVideoDetails(video.video_id);
-        const duration = details ? details.duration_sec : 180; // Default 3 min if fails
+        const duration = details ? details.duration_sec : 180;
 
-        // 3. Insert with user_id & duration
+        // 4. Dynamic Checks (Duration)
+        const settings = establishment.settings || {};
+        const maxDuration = settings.max_duration_seconds || 600;
+
+        if (duration > maxDuration) {
+            throw new Error(`Música muito longa! O limite é de ${(maxDuration / 60).toFixed(0)} minutos.`);
+        }
+
+        // 5. Insert with user_id & duration
         const { error } = await supabase.from('queue').insert([
             {
                 establishment_id: establishment.id, // Link to establishment

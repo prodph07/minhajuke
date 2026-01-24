@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useQueue } from '../hooks/useQueue';
 import { useEstablishment } from '../contexts/EstablishmentContext';
 import { useAdminStats } from '../hooks/useAdminStats';
-import { Trash2, SkipForward, Play, LayoutDashboard, ListMusic, Users, Clock, Music } from 'lucide-react';
+import { Trash2, SkipForward, Play, LayoutDashboard, ListMusic, Users, Clock, Music, Settings } from 'lucide-react';
 
 // Dashboard Components
 import { StatsCard } from '../components/Dashboard/StatsCard';
 import RequestsChart from '../components/Dashboard/RequestsChart';
 import PopularSongsList from '../components/Dashboard/PopularSongsList';
+import SettingsTab from '../components/Dashboard/SettingsTab';
 
 export default function AdminPage() {
     const { queue, nowPlaying, removeSong, playNext, updateStatus } = useQueue();
@@ -59,6 +60,14 @@ export default function AdminPage() {
                     >
                         <LayoutDashboard className="w-4 h-4" />
                         Dashboard
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('settings')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'settings' ? 'bg-neon-purple text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        <Settings className="w-4 h-4" />
+                        Configurações
                     </button>
                 </div>
             </div>
@@ -154,6 +163,11 @@ export default function AdminPage() {
                             </div>
                         </section>
                     </div>
+                ) : activeTab === 'settings' ? (
+                    /* === SETTINGS TAB === */
+                    <SettingsTab establishment={establishment} />
+                ) : activeTab === 'settings' ? (
+                    <SettingsTab establishment={establishment} />
                 ) : (
                     /* === DASHBOARD TAB === */
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
