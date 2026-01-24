@@ -16,9 +16,6 @@ export default function PlayerPage() {
 
     // Reset state when video changes
     useEffect(() => {
-        // When video ID changes, we DO NOT reset ready to false immediately if the player instance exists,
-        // because we want to avoid flashing black. 
-        // We let the player transition to BUFFERING (3) naturally.
         setPlayerState(-1);
         setShowForceReady(false);
 
@@ -31,6 +28,45 @@ export default function PlayerPage() {
 
         return () => clearTimeout(timer);
     }, [nowPlaying?.video_id]);
+
+    // AGGRESSIVE SYNC: Continuously correct drift
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            if (nowPlaying?.started_at && playerRef.current && ready && playerState === 1) { // Only check if playing
+                const startTime = new Date(nowPlaying.started_at).getTime();
+                const now = Date.now();
+                const expectedTime = (now - startTime) / 1000;
+
+                // Get actual player time
+                const actualTime = await playerRef.current.getCurrentTime();
+
+                const drift = Math.abs(expectedTime - actualTime);
+
+                // ULTRA AGGRESSIVE: If drift > 1.5 seconds, force seek
+                // Check Interval: 1000ms
+                if (drift > 1.5) {
+                    console.log(`Drift Detected (${drift.toFixed(1)}s). Seeking to ${expectedTime.toFixed(1)}s...`);
+                    playerRef.current.seekTo(expectedTime, true);
+                }
+            }
+        }, 1000); // Check every 1 second
+
+        return () => clearInterval(interval);
+    }, [nowPlaying?.started_at, ready, playerState]);
+
+    // INITIAL SYNC LOGIC: Seek to correct time on load/change
+    useEffect(() => {
+        if (nowPlaying?.started_at && playerRef.current && ready) {
+            const startTime = new Date(nowPlaying.started_at).getTime();
+            const now = Date.now();
+            const elapsedSec = (now - startTime) / 1000;
+
+            if (elapsedSec > 2) {
+                console.log(`Initial Sync: Seeking to ${elapsedSec}s`);
+                playerRef.current.seekTo(elapsedSec, true);
+            }
+        }
+    }, [nowPlaying?.video_id, nowPlaying?.started_at, ready]);
 
     // Handle Mute/Unmute via API
     useEffect(() => {
@@ -56,8 +92,21 @@ export default function PlayerPage() {
         event.target.playVideo();
     };
 
+    const syncNow = async () => {
+        if (nowPlaying?.started_at && playerRef.current) {
+            const startTime = new Date(nowPlaying.started_at).getTime();
+            const now = Date.now();
+            const expectedTime = (now - startTime) / 1000;
+            const actualTime = await playerRef.current.getCurrentTime();
+
+            if (Math.abs(expectedTime - actualTime) > 0.5) {
+                console.log(`Instant Sync (State Change): Seeking to ${expectedTime.toFixed(1)}s`);
+                playerRef.current.seekTo(expectedTime, true);
+            }
+        }
+    }
+
     const onPlayerStateChange = (event) => {
-        // event.data: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (video cued)
         const newState = event.data;
         setPlayerState(newState);
         console.log('Player State Change:', newState);
@@ -66,9 +115,11 @@ export default function PlayerPage() {
             playNext();
         }
 
-        // If playing, ensure we hide force ready button AND sync mute state
-        if (newState === 1) {
+        if (newState === 1) { // PLAYING
             setShowForceReady(false);
+
+            // IMMEDIATE SYNC CHECK (Fixes buffering delay)
+            syncNow();
 
             // Force sync mute state
             if (playerRef.current) {
@@ -78,18 +129,6 @@ export default function PlayerPage() {
                     playerRef.current.unMute();
                 }
             }
-        }
-    };
-
-    const getStatusLabel = (code) => {
-        switch (code) {
-            case -1: return 'UNSTARTED';
-            case 0: return 'ENDED';
-            case 1: return 'PLAYING';
-            case 2: return 'PAUSED';
-            case 3: return 'BUFFERING';
-            case 5: return 'CUED';
-            default: return `UNKNOWN (${code})`;
         }
     };
 
@@ -154,7 +193,6 @@ export default function PlayerPage() {
                         )}
 
                         {/* Loading Overlay */}
-                        {/* Only show if NOT ready OR if buffering/unstarted for a long time */}
                         {(!ready || (playerState === 3 && showForceReady)) && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40">
                                 <div className="text-center animate-pulse mb-8">

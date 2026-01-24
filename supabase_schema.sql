@@ -24,3 +24,6 @@ create policy "Enable delete for all users" on queue for delete using (true);
 
 -- Enable Realtime
 alter publication supabase_realtime add table queue;
+
+-- Add user_id to queue table for rate limiting
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS user_id TEXT;

@@ -1,6 +1,18 @@
 
 const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
-const BASE_URL = 'https://www.googleapis.com/youtube/v3/search';
+const BASE_URL = 'https://www.googleapis.com/youtube/v3';
+
+// Helper to parse ISO 8601 duration (PT4M13S) to seconds
+const parseDuration = (duration) => {
+    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    if (!match) return 0;
+
+    const hours = (parseInt(match[1]) || 0);
+    const minutes = (parseInt(match[2]) || 0);
+    const seconds = (parseInt(match[3]) || 0);
+
+    return (hours * 3600) + (minutes * 60) + seconds;
+};
 
 export const searchVideos = async (query) => {
     if (!query) return [];
@@ -11,7 +23,7 @@ export const searchVideos = async (query) => {
 
     try {
         const response = await fetch(
-            `${BASE_URL}?part=snippet&maxResults=10&q=${encodeURIComponent(query)}&type=video&key=${API_KEY}`
+            `${BASE_URL}/search?part=snippet&maxResults=10&q=${encodeURIComponent(query)}&type=video&key=${API_KEY}`
         );
 
         if (!response.ok) {
@@ -31,5 +43,30 @@ export const searchVideos = async (query) => {
     } catch (error) {
         console.error('Search error:', error);
         return [];
+    }
+};
+
+export const getVideoDetails = async (videoId) => {
+    try {
+        const response = await fetch(
+            `${BASE_URL}/videos?part=contentDetails,snippet&id=${videoId}&key=${API_KEY}`
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch video details');
+
+        const data = await response.json();
+        if (!data.items || data.items.length === 0) return null;
+
+        const item = data.items[0];
+        return {
+            video_id: item.id,
+            title: item.snippet.title,
+            channel_title: item.snippet.channelTitle,
+            thumbnail_url: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+            duration_sec: parseDuration(item.contentDetails.duration)
+        };
+    } catch (error) {
+        console.error('Get Video Details error:', error);
+        return null;
     }
 };
