@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import YouTube from 'react-youtube';
 import { Music, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { useQueue } from '../hooks/useQueue';
+import { useEstablishment } from '../contexts/EstablishmentContext';
 
 export default function PlayerPage() {
     const { nowPlaying, queue, playNext } = useQueue();
+    const { establishment } = useEstablishment() || {}; // Safe usage if global player
     const [playerState, setPlayerState] = useState(-1); // -1: unstarted, 0: ended, 1: playing, 2: paused, 3: buffering, 5: video cued
     const [ready, setReady] = useState(false);
     const [muted, setMuted] = useState(true); // Start muted for autoplay
@@ -79,7 +81,10 @@ export default function PlayerPage() {
         }
     }, [muted, ready]);
 
-    const requestUrl = `${window.location.protocol}//${window.location.host}/request`;
+    const requestUrl = establishment
+        ? `${window.location.origin}/e/${establishment.slug}/request`
+        : `${window.location.origin}/request`; // Fallback
+
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(requestUrl)}`;
 
     const onPlayerReady = (event) => {

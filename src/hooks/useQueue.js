@@ -1,8 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getVideoDetails } from '../services/youtubeService';
+import { useEstablishment } from '../contexts/EstablishmentContext';
 
 export function useQueue() {
+    const { establishment } = useEstablishment() || {};
     const [queue, setQueue] = useState([]);
     const [nowPlaying, setNowPlaying] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -22,12 +24,15 @@ export function useQueue() {
     };
 
     // Fetch initial queue
-    const fetchQueue = async () => {
+    const fetchQueue = useCallback(async () => {
+        if (!establishment) return; // Don't fetch if no establishment context (unless global mode desired?)
+
         setLoading(true);
         // Get everything that is waiting OR playing
         const { data, error } = await supabase
             .from('queue')
             .select('*')
+            .eq('establishment_id', establishment.id) // Filter by Establishment!
             .in('status', ['waiting', 'playing'])
             .order('created_at', { ascending: true });
 
@@ -51,10 +56,12 @@ export function useQueue() {
             setQueue(waiting || []);
         }
         setLoading(false);
-    };
+    }, [establishment]);
 
     useEffect(() => {
-        fetchQueue();
+        if (establishment) {
+            fetchQueue();
+        }
 
         // ADMIN/VIP ACTIVATION VIA URL
         const params = new URLSearchParams(window.location.search);
@@ -63,10 +70,17 @@ export function useQueue() {
             console.log('VIP Mode Activated');
         }
 
+        if (!establishment) return;
+
         // Subscribe to realtime changes
         const channel = supabase
-            .channel('public:queue')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'queue' }, (payload) => {
+            .channel(`public:queue:${establishment.id}`) // Unique channel per establishment
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'queue',
+                filter: `establishment_id=eq.${establishment.id}` // Filter only this establishment's changes
+            }, (payload) => {
                 console.log('Realtime change received:', payload);
                 fetchQueue();
             })
@@ -75,7 +89,7 @@ export function useQueue() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [establishment, fetchQueue]); // Re-run when establishment changes
 
     // HEARTBEAT SYNC: Check every 5s if current song has expired
     useEffect(() => {
@@ -103,12 +117,15 @@ export function useQueue() {
     const checkRateLimit = async (userId) => {
         if (isVip()) return true; // VIP bypass
 
+        if (!establishment) throw new Error('Establishment not found');
+
         // Time window: 10 minutes ago
         const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
         const { count, error } = await supabase
             .from('queue')
             .select('*', { count: 'exact', head: true })
+            .eq('establishment_id', establishment.id) // Scope to establishment
             .eq('user_id', userId)
             .gte('created_at', tenMinutesAgo);
 
@@ -125,6 +142,11 @@ export function useQueue() {
     };
 
     const addToQueue = async (video) => {
+        if (!establishment) {
+            console.error("Cannot add to queue: No establishment context");
+            return;
+        }
+
         const userId = getUserId();
 
         // 1. Check Limits
@@ -137,6 +159,7 @@ export function useQueue() {
         // 3. Insert with user_id & duration
         const { error } = await supabase.from('queue').insert([
             {
+                establishment_id: establishment.id, // Link to establishment
                 video_id: video.video_id,
                 title: video.title,
                 channel_title: video.channel_title,
@@ -157,7 +180,8 @@ export function useQueue() {
         const { error } = await supabase
             .from('queue')
             .update({ status, ...extraFields })
-            .eq('id', id);
+            .eq('id', id)
+            .eq('establishment_id', establishment.id); // Safety check
 
         if (error) console.error('Error updating status:', error);
     };
