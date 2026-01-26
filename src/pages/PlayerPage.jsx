@@ -55,7 +55,7 @@ export default function PlayerPage() {
 
     // Player State
     const [ready, setReady] = useState(false);
-    const [muted, setMuted] = useState(true); // Start muted for autoplay
+    const [muted, setMuted] = useState(false); // Try to start unmuted
     const [playerState, setPlayerState] = useState(-1);
 
     // UI State
@@ -187,7 +187,7 @@ export default function PlayerPage() {
             disablekb: 1,
             fs: 0,
             modestbranding: 1,
-            mute: 1,
+            mute: 0,
             origin: window.location.origin,
             rel: 0,
             showinfo: 0,
