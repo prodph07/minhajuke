@@ -34,6 +34,21 @@ class PlayerErrorBoundary extends React.Component {
     }
 }
 
+// Custom Guarded Image Component
+const SafeImage = ({ src, alt, className, ...props }) => {
+    const [error, setError] = useState(false);
+    if (error || !src) return null; // Render nothing if broken
+    return (
+        <img
+            src={src}
+            alt={alt}
+            className={className}
+            onError={() => setError(true)}
+            {...props}
+        />
+    );
+};
+
 export default function PlayerPage() {
     const { nowPlaying, queue, playNext } = useQueue();
     const { establishment } = useEstablishment() || {}; // Safe usage if global player
@@ -57,10 +72,12 @@ export default function PlayerPage() {
         setBuffering(true);
         setShowForceReady(false);
 
-        // Fallback: If still not ready after 8 seconds
+        // Fallback: Force ready after 8s to unblock UI
         const timer = setTimeout(() => {
             if (!ready) {
-                setShowForceReady(true);
+                console.warn("Force Ready triggered due to timeout");
+                setReady(true);
+                setBuffering(false);
             }
         }, 8000);
 
@@ -70,23 +87,29 @@ export default function PlayerPage() {
     // AGGRESSIVE SYNC: Continuously correct drift
     useEffect(() => {
         const interval = setInterval(async () => {
-            if (nowPlaying?.started_at && playerRef.current && ready && isPlaying && !buffering) {
-                const startTime = new Date(nowPlaying.started_at).getTime();
-                const now = Date.now();
-                const expectedTime = (now - startTime) / 1000;
+            try {
+                if (nowPlaying?.started_at && playerRef.current && ready && isPlaying && !buffering) {
+                    const startTime = new Date(nowPlaying.started_at).getTime();
+                    const now = Date.now();
+                    const expectedTime = (now - startTime) / 1000;
 
-                // Get actual player time
-                const actualTime = playerRef.current.getCurrentTime();
+                    // Get actual player time safely
+                    const actualTime = playerRef.current.getCurrentTime ? playerRef.current.getCurrentTime() : null;
 
-                if (actualTime === null || actualTime === undefined) return;
+                    if (actualTime === null || actualTime === undefined) return;
 
-                const drift = Math.abs(expectedTime - actualTime);
+                    const drift = Math.abs(expectedTime - actualTime);
 
-                // Drift Correction (Aggressive > 2s)
-                if (drift > 2.0) {
-                    console.log(`Drift Detected (${drift.toFixed(1)}s). Seeking to ${expectedTime.toFixed(1)}s...`);
-                    playerRef.current.seekTo(expectedTime, 'seconds');
+                    // Drift Correction (Aggressive > 2s)
+                    if (drift > 2.0) {
+                        console.log(`Drift Detected (${drift.toFixed(1)}s). Seeking to ${expectedTime.toFixed(1)}s...`);
+                        if (playerRef.current.seekTo) {
+                            playerRef.current.seekTo(expectedTime, 'seconds');
+                        }
+                    }
                 }
+            } catch (err) {
+                console.warn("Sync loop error:", err);
             }
         }, 1000); // Check every 1 second
 
@@ -95,15 +118,21 @@ export default function PlayerPage() {
 
     // INITIAL SYNC LOGIC
     useEffect(() => {
-        if (nowPlaying?.started_at && playerRef.current && ready) {
-            const startTime = new Date(nowPlaying.started_at).getTime();
-            const now = Date.now();
-            const elapsedSec = (now - startTime) / 1000;
+        try {
+            if (nowPlaying?.started_at && playerRef.current && ready) {
+                const startTime = new Date(nowPlaying.started_at).getTime();
+                const now = Date.now();
+                const elapsedSec = (now - startTime) / 1000;
 
-            if (elapsedSec > 2) {
-                console.log(`Initial Sync: Seeking to ${elapsedSec}s`);
-                playerRef.current.seekTo(elapsedSec, 'seconds');
+                if (elapsedSec > 2) {
+                    console.log(`Initial Sync: Seeking to ${elapsedSec}s`);
+                    if (playerRef.current.seekTo) {
+                        playerRef.current.seekTo(elapsedSec, 'seconds');
+                    }
+                }
             }
+        } catch (err) {
+            console.warn("Initial sync error:", err);
         }
     }, [nowPlaying?.video_id, nowPlaying?.started_at, ready]);
 
@@ -250,13 +279,13 @@ export default function PlayerPage() {
                     {/* FOOTER / INFO BAR */}
                     <div className="h-32 bg-[#0f0f0f] border-t border-white/10 flex items-center px-8 justify-between z-20 relative shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
                         {/* Current Song Info */}
+                        {/* Current Song Info */}
                         <div className="flex items-center gap-6">
                             {(nowPlaying.thumbnail_url) && (
-                                <img
+                                <SafeImage
                                     src={nowPlaying.thumbnail_url}
                                     className="w-20 h-20 object-cover rounded-lg shadow-lg shadow-neon-purple/20 ring-1 ring-white/10"
                                     alt="Album Art"
-                                    onError={(e) => e.target.style.display = 'none'}
                                 />
                             )}
                             <div className="max-w-md">
@@ -281,7 +310,7 @@ export default function PlayerPage() {
                                 )}
                             </div>
                             <div className="bg-white p-2 rounded-lg shadow-lg shadow-neon-green/20">
-                                <img src={qrCodeUrl} className="w-20 h-20" alt="Join QR" />
+                                <SafeImage src={qrCodeUrl} className="w-20 h-20" alt="Join QR" />
                             </div>
                         </div>
                     </div>
@@ -306,7 +335,7 @@ export default function PlayerPage() {
                         </div>
 
                         <div className="bg-white p-6 rounded-2xl inline-block shadow-[0_0_40px_-10px_rgba(0,255,65,0.4)] transform hover:scale-105 transition duration-500">
-                            <img src={qrCodeUrl} alt="QR Code" className="w-72 h-72 mix-blend-multiply" />
+                            <SafeImage src={qrCodeUrl} alt="QR Code" className="w-72 h-72 mix-blend-multiply" />
                             <p className="mt-4 text-black font-mono font-bold tracking-[0.2em] text-sm">
                                 {requestUrl.replace(/^https?:\/\//, '')}
                             </p>
