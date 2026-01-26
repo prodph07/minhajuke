@@ -8,9 +8,9 @@ export default {
     extend: {
       colors: {
         neon: {
-          purple: '#b026ff',
-          green: '#00ff41',
-          dark: '#0f0f0f', 
+          purple: 'var(--theme-primary, #b026ff)',
+          green: 'var(--theme-secondary, #00ff41)',
+          dark: 'var(--theme-background, #0f0f0f)',
         }
       }
     },

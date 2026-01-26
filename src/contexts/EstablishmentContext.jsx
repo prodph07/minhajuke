@@ -11,6 +11,30 @@ export function EstablishmentProvider({ children }) {
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        const root = document.documentElement;
+        if (establishment?.settings) {
+            const s = establishment.settings;
+            if (s.theme_primary_color) root.style.setProperty('--theme-primary', s.theme_primary_color);
+            if (s.theme_secondary_color) root.style.setProperty('--theme-secondary', s.theme_secondary_color);
+            if (s.background_image_url) {
+                document.body.style.backgroundImage = `url('${s.background_image_url}')`;
+                document.body.style.backgroundSize = 'cover';
+                document.body.style.backgroundPosition = 'center';
+                document.body.style.backgroundAttachment = 'fixed';
+            }
+        }
+
+        return () => {
+            root.style.removeProperty('--theme-primary');
+            root.style.removeProperty('--theme-secondary');
+            document.body.style.backgroundImage = '';
+            document.body.style.backgroundSize = '';
+            document.body.style.backgroundPosition = '';
+            document.body.style.backgroundAttachment = '';
+        };
+    }, [establishment]);
+
+    useEffect(() => {
         if (!slug) {
             setLoading(false);
             return;

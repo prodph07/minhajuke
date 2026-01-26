@@ -23,9 +23,16 @@ export function useQueue() {
         return localStorage.getItem('jukebox_vip') === 'true';
     };
 
+    const establishmentRef = useRef(establishment?.id);
+
+    useEffect(() => {
+        establishmentRef.current = establishment?.id;
+    }, [establishment]);
+
     // Fetch initial queue
     const fetchQueue = useCallback(async () => {
-        if (!establishment) return; // Don't fetch if no establishment context (unless global mode desired?)
+        const currentEstId = establishmentRef.current;
+        if (!establishment || !currentEstId) return;
 
         setLoading(true);
         // Get everything that is waiting OR playing
@@ -35,6 +42,12 @@ export function useQueue() {
             .eq('establishment_id', establishment.id) // Filter by Establishment!
             .in('status', ['waiting', 'playing'])
             .order('created_at', { ascending: true });
+
+        // STALE CHECK: If establishment changed while fetching, abort
+        if (establishment.id !== establishmentRef.current) {
+            console.log('Stale fetch detected, ignoring.');
+            return;
+        }
 
         if (error) {
             console.error('Error fetching queue:', error);
@@ -61,6 +74,9 @@ export function useQueue() {
     useEffect(() => {
         if (establishment) {
             fetchQueue();
+        } else {
+            setQueue([]); // Clear if no establishment
+            setNowPlaying(null);
         }
 
         // ADMIN/VIP ACTIVATION VIA URL
@@ -81,6 +97,13 @@ export function useQueue() {
                 table: 'queue',
                 filter: `establishment_id=eq.${establishment.id}` // Filter only this establishment's changes
             }, (payload) => {
+                // DOUBLE SECURITY: Verify payload ID matches current ref
+                if (payload && payload.new && payload.new.establishment_id) {
+                    if (String(payload.new.establishment_id) !== String(establishmentRef.current)) {
+                        console.warn("Ignored event from wrong establishment", payload.new.establishment_id);
+                        return;
+                    }
+                }
                 console.log('Realtime change received:', payload);
                 fetchQueue();
             })
@@ -206,6 +229,8 @@ export function useQueue() {
     };
 
     const updateStatus = async (id, status, extraFields = {}) => {
+        if (!establishment) return; // Guard clause
+
         const { error } = await supabase
             .from('queue')
             .update({ status, ...extraFields })
@@ -216,6 +241,8 @@ export function useQueue() {
     };
 
     const playNext = async () => {
+        if (!establishment) return;
+
         // 1. Mark current playing as 'played'
         if (nowPlaying) {
             await updateStatus(nowPlaying.id, 'played');
@@ -233,6 +260,7 @@ export function useQueue() {
     };
 
     const removeSong = async (id) => {
+        if (!establishment) return;
         await updateStatus(id, 'removed');
     }
 
@@ -243,6 +271,7 @@ export function useQueue() {
         addToQueue,
         playNext,
         updateStatus,
-        removeSong
+        removeSong,
+        establishment
     };
 }

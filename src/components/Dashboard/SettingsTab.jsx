@@ -163,15 +163,59 @@ export default function SettingsTab({ establishment }) {
                 {/* 3. PERSONALIZAÇÃO */}
                 <section className="bg-white/5 border border-white/10 p-6 rounded-xl">
                     <h3 className="text-xl font-bold text-white mb-4">Personalização</h3>
-                    <div className="space-y-2">
-                        <label className="text-sm text-gray-400">Mensagem de Boas-Vindas</label>
-                        <input
-                            type="text"
-                            name="welcome_message"
-                            value={settings.welcome_message}
-                            onChange={handleChange}
-                            className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-white outline-none"
-                        />
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm text-gray-400">Cor Primária (Neon)</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        name="theme_primary_color"
+                                        value={settings.theme_primary_color || '#b026ff'}
+                                        onChange={handleChange}
+                                        className="h-10 w-20 bg-transparent border border-white/10 rounded cursor-pointer"
+                                    />
+                                    <span className="text-xs text-gray-500 font-mono">{settings.theme_primary_color || '#b026ff'}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm text-gray-400">Cor Secundária (Destaque)</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        name="theme_secondary_color"
+                                        value={settings.theme_secondary_color || '#00ff41'}
+                                        onChange={handleChange}
+                                        className="h-10 w-20 bg-transparent border border-white/10 rounded cursor-pointer"
+                                    />
+                                    <span className="text-xs text-gray-500 font-mono">{settings.theme_secondary_color || '#00ff41'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-400">Imagem de Fundo (URL)</label>
+                            <input
+                                type="url"
+                                name="background_image_url"
+                                value={settings.background_image_url || ''}
+                                onChange={handleChange}
+                                placeholder="https://exemplo.com/imagem.jpg"
+                                className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-white outline-none"
+                            />
+                            <p className="text-xs text-gray-500">Cole o link direto de uma imagem.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-400">Mensagem de Boas-Vindas</label>
+                            <input
+                                type="text"
+                                name="welcome_message"
+                                value={settings.welcome_message || ''}
+                                onChange={handleChange}
+                                className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-white outline-none"
+                            />
+                        </div>
                     </div>
                 </section>
 
@@ -181,8 +225,8 @@ export default function SettingsTab({ establishment }) {
                         type="submit"
                         disabled={saving}
                         className={`px-8 py-3 rounded-xl font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${success
-                                ? 'bg-green-500 text-white hover:bg-green-600'
-                                : 'bg-white text-black hover:bg-gray-200'
+                            ? 'bg-green-500 text-white hover:bg-green-600'
+                            : 'bg-white text-black hover:bg-gray-200'
                             } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {saving ? (

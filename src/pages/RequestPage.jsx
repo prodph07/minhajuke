@@ -54,7 +54,7 @@ export default function RequestPage() {
         <div className="space-y-6">
             {/* Search Section */}
             <section className="space-y-4">
-                <h2 className="text-2xl font-bold mb-4">Pedir Música</h2>
+                <h2 className="text-2xl font-bold mb-4">{establishment?.settings?.welcome_message || 'Pedir Música'}</h2>
                 <form onSubmit={handleSearch} className="flex gap-2">
                     <input
                         type="text"
