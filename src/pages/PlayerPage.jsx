@@ -87,22 +87,27 @@ export default function PlayerPage() {
         const interval = setInterval(async () => {
             try {
                 // Check if playing (state === 1)
+                // Only sync if we are past the initial buffer/startup phase (e.g., > 10 seconds in)
+                // This prevents the player from fighting with initial buffering delays.
                 if (nowPlaying?.started_at && playerRef.current && ready && playerState === 1) {
                     const startTime = new Date(nowPlaying.started_at).getTime();
                     const now = Date.now();
                     const expectedTime = (now - startTime) / 1000;
 
                     // Get actual player time safely
-                    // react-youtube exposes raw player object. getCurrentTime() is synchronous and returns number.
                     if (!playerRef.current.getCurrentTime) return;
                     const actualTime = playerRef.current.getCurrentTime();
 
                     if (actualTime === null || actualTime === undefined) return;
 
+                    // GRACE PERIOD: Don't sync if we are in the first 10 seconds of the song's timeline
+                    // OR if the expected time is very small (just started).
+                    if (actualTime < 10) return;
+
                     const drift = Math.abs(expectedTime - actualTime);
 
-                    // Drift Correction (Aggressive > 2s)
-                    if (drift > 2.0) {
+                    // Drift Correction (Relaxed to > 8s)
+                    if (drift > 8.0) {
                         console.log(`Drift Detected (${drift.toFixed(1)}s). Seeking to ${expectedTime.toFixed(1)}s...`);
                         if (playerRef.current.seekTo) {
                             playerRef.current.seekTo(expectedTime, true);
@@ -112,7 +117,7 @@ export default function PlayerPage() {
             } catch (err) {
                 console.warn("Sync loop error:", err);
             }
-        }, 1000); // Check every 1 second
+        }, 2000); // Check every 2 seconds (less frequent to save resources)
 
         return () => clearInterval(interval);
     }, [nowPlaying?.started_at, ready, playerState]);
@@ -125,7 +130,7 @@ export default function PlayerPage() {
                 const now = Date.now();
                 const elapsedSec = (now - startTime) / 1000;
 
-                if (elapsedSec > 2) {
+                if (elapsedSec > 5) {
                     console.log(`Initial Sync: Seeking to ${elapsedSec}s`);
                     if (playerRef.current.seekTo) {
                         playerRef.current.seekTo(elapsedSec, true);
