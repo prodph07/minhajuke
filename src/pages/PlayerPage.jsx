@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import YouTube from 'react-youtube';
+import ReactPlayer from 'react-player';
 import { Music, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { useQueue } from '../hooks/useQueue';
 import { useEstablishment } from '../contexts/EstablishmentContext';
@@ -37,23 +37,29 @@ class PlayerErrorBoundary extends React.Component {
 export default function PlayerPage() {
     const { nowPlaying, queue, playNext } = useQueue();
     const { establishment } = useEstablishment() || {}; // Safe usage if global player
-    const [playerState, setPlayerState] = useState(-1); // -1: unstarted, 0: ended, 1: playing, 2: paused, 3: buffering, 5: video cued
+
+    // Player State
     const [ready, setReady] = useState(false);
     const [muted, setMuted] = useState(true); // Start muted for autoplay
+    const [isPlaying, setIsPlaying] = useState(true); // Always try to play
+    const [buffering, setBuffering] = useState(false);
+
+    // UI State
     const [showControls, setShowControls] = useState(false);
     const [showForceReady, setShowForceReady] = useState(false);
 
-    // Ref to hold the internal YouTube player instance
+    // Ref to hold the internal ReactPlayer instance
     const playerRef = useRef(null);
 
     // Reset state when video changes
     useEffect(() => {
-        setPlayerState(-1);
+        setReady(false);
+        setBuffering(true);
         setShowForceReady(false);
 
-        // Fallback: If state is still unstarted/buffering after 8 seconds
+        // Fallback: If still not ready after 8 seconds
         const timer = setTimeout(() => {
-            if (playerState === -1 || playerState === 3) {
+            if (!ready) {
                 setShowForceReady(true);
             }
         }, 8000);
@@ -64,32 +70,30 @@ export default function PlayerPage() {
     // AGGRESSIVE SYNC: Continuously correct drift
     useEffect(() => {
         const interval = setInterval(async () => {
-            if (nowPlaying?.started_at && playerRef.current && ready && playerState === 1) { // Only check if playing
+            if (nowPlaying?.started_at && playerRef.current && ready && isPlaying && !buffering) {
                 const startTime = new Date(nowPlaying.started_at).getTime();
                 const now = Date.now();
                 const expectedTime = (now - startTime) / 1000;
 
                 // Get actual player time
-                // Add safeguard for strict mode TV browsers
-                if (!playerRef.current.getCurrentTime) return;
+                const actualTime = playerRef.current.getCurrentTime();
 
-                const actualTime = await playerRef.current.getCurrentTime();
+                if (actualTime === null || actualTime === undefined) return;
 
                 const drift = Math.abs(expectedTime - actualTime);
 
-                // ULTRA AGGRESSIVE: If drift > 1.5 seconds, force seek
-                // Check Interval: 1000ms
-                if (drift > 1.5) {
+                // Drift Correction (Aggressive > 2s)
+                if (drift > 2.0) {
                     console.log(`Drift Detected (${drift.toFixed(1)}s). Seeking to ${expectedTime.toFixed(1)}s...`);
-                    playerRef.current.seekTo(expectedTime, true);
+                    playerRef.current.seekTo(expectedTime, 'seconds');
                 }
             }
         }, 1000); // Check every 1 second
 
         return () => clearInterval(interval);
-    }, [nowPlaying?.started_at, ready, playerState]);
+    }, [nowPlaying?.started_at, ready, isPlaying, buffering]);
 
-    // INITIAL SYNC LOGIC: Seek to correct time on load/change
+    // INITIAL SYNC LOGIC
     useEffect(() => {
         if (nowPlaying?.started_at && playerRef.current && ready) {
             const startTime = new Date(nowPlaying.started_at).getTime();
@@ -98,94 +102,42 @@ export default function PlayerPage() {
 
             if (elapsedSec > 2) {
                 console.log(`Initial Sync: Seeking to ${elapsedSec}s`);
-                playerRef.current.seekTo(elapsedSec, true);
+                playerRef.current.seekTo(elapsedSec, 'seconds');
             }
         }
     }, [nowPlaying?.video_id, nowPlaying?.started_at, ready]);
 
-    // Handle Mute/Unmute via API
-    useEffect(() => {
-        if (playerRef.current && ready) {
-            if (muted) {
-                playerRef.current.mute?.();
-            } else {
-                playerRef.current.unMute?.();
-            }
-        }
-    }, [muted, ready]);
 
     const requestUrl = establishment
         ? `${window.location.origin}/e/${establishment.slug}/request`
-        : `${window.location.origin}/request`; // Fallback
+        : `${window.location.origin}/request`;
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(requestUrl)}`;
 
-    const onPlayerReady = (event) => {
-        console.log('YouTube Player Ready');
-        playerRef.current = event.target;
+    const onReadyHandler = () => {
+        console.log('ReactPlayer Ready');
         setReady(true);
-
-        // Ensure muted and playing on start
-        event.target.mute?.();
-        event.target.playVideo?.();
     };
 
-    const syncNow = async () => {
-        if (nowPlaying?.started_at && playerRef.current) {
-            const startTime = new Date(nowPlaying.started_at).getTime();
-            const now = Date.now();
-            const expectedTime = (now - startTime) / 1000;
-            const actualTime = await playerRef.current.getCurrentTime();
-
-            if (Math.abs(expectedTime - actualTime) > 0.5) {
-                console.log(`Instant Sync (State Change): Seeking to ${expectedTime.toFixed(1)}s`);
-                playerRef.current.seekTo(expectedTime, true);
-            }
-        }
-    }
-
-    const onPlayerStateChange = (event) => {
-        const newState = event.data;
-        setPlayerState(newState);
-        console.log('Player State Change:', newState);
-
-        if (newState === 0) { // ENDED
-            playNext();
-        }
-
-        if (newState === 1) { // PLAYING
-            setShowForceReady(false);
-
-            // IMMEDIATE SYNC CHECK (Fixes buffering delay)
-            syncNow();
-
-            // Force sync mute state
-            if (playerRef.current) {
-                if (muted) {
-                    playerRef.current.mute?.();
-                } else {
-                    playerRef.current.unMute?.();
-                }
-            }
-        }
+    const onStartHandler = () => {
+        console.log('ReactPlayer Started');
+        setBuffering(false);
+        setIsPlaying(true);
     };
 
-    // YouTube Player Options
-    const opts = {
-        height: '100%',
-        width: '100%',
-        playerVars: {
-            autoplay: 1,
-            controls: 0,
-            disablekb: 1,
-            fs: 0,
-            modestbranding: 1,
-            mute: 1, // Start muted
-            origin: window.location.origin,
-            rel: 0,
-            showinfo: 0,
-            iv_load_policy: 3
-        },
+    const onBufferHandler = () => {
+        console.log('ReactPlayer Buffering...');
+        setBuffering(true);
+    };
+
+    const onEndedHandler = () => {
+        console.log('ReactPlayer Ended');
+        playNext();
+    };
+
+    const onErrorHandler = (e) => {
+        console.error('ReactPlayer Error:', e);
+        // Could try to skip or reload
     };
 
     return (
@@ -202,22 +154,33 @@ export default function PlayerPage() {
                         <div className="w-full h-full pointer-events-none">
                             <div className="w-full h-full pointer-events-auto">
                                 <PlayerErrorBoundary>
-                                    {nowPlaying.video_id ? (
-                                        <YouTube
-                                            // key={nowPlaying.video_id}  <-- REMOVED KEY to prevent unmounting
-                                            videoId={nowPlaying.video_id}
-                                            opts={opts}
-                                            onReady={onPlayerReady}
-                                            onStateChange={onPlayerStateChange}
-                                            onError={(e) => console.error('YouTube Error:', e)}
-                                            className="w-full h-full"
-                                            iframeClassName="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-black">
-                                            <p className="text-gray-500">Video ID indefinido</p>
-                                        </div>
-                                    )}
+                                    <ReactPlayer
+                                        ref={playerRef}
+                                        url={`https://www.youtube.com/watch?v=${nowPlaying.video_id}`}
+                                        width="100%"
+                                        height="100%"
+                                        playing={isPlaying}
+                                        muted={muted}
+                                        controls={false}
+                                        onReady={onReadyHandler}
+                                        onStart={onStartHandler}
+                                        onBuffer={onBufferHandler} // Detect buffering
+                                        onEnded={onEndedHandler}
+                                        onError={onErrorHandler}
+                                        config={{
+                                            youtube: {
+                                                playerVars: {
+                                                    showinfo: 0,
+                                                    modestbranding: 1,
+                                                    iv_load_policy: 3,
+                                                    rel: 0,
+                                                    disablekb: 1,
+                                                    fs: 0
+                                                }
+                                            }
+                                        }}
+                                        style={{ pointerEvents: 'none' }} // Prevent interaction hijack?
+                                    />
                                 </PlayerErrorBoundary>
                             </div>
                         </div>
@@ -226,7 +189,7 @@ export default function PlayerPage() {
                         {(muted || !ready) && (
                             <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
                                 {/* Centered Unmute Prompt */}
-                                {ready && muted && (playerState === 1 || playerState === 3) && (
+                                {ready && muted && (
                                     <button
                                         onClick={() => setMuted(false)}
                                         className="pointer-events-auto bg-black/60 backdrop-blur-md border border-neon-green/50 text-neon-green font-bold py-4 px-8 rounded-full shadow-[0_0_30px_rgba(0,255,65,0.3)] hover:scale-105 hover:bg-neon-green hover:text-black transition-all duration-300 flex items-center gap-3 animate-pulse"
@@ -239,11 +202,13 @@ export default function PlayerPage() {
                         )}
 
                         {/* Loading Overlay */}
-                        {(!ready || (playerState === 3 && showForceReady)) && (
+                        {(!ready || (buffering && showForceReady)) && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40">
                                 <div className="text-center animate-pulse mb-8">
                                     <div className="w-12 h-12 border-4 border-neon-green border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                                    <p className="text-neon-green text-xl font-bold tracking-widest">CARREGANDO...</p>
+                                    <p className="text-neon-green text-xl font-bold tracking-widest">
+                                        {!ready ? 'CARREGANDO PLAYER...' : 'BUFFERING...'}
+                                    </p>
                                 </div>
 
                                 {showForceReady && (
@@ -260,12 +225,12 @@ export default function PlayerPage() {
                             </div>
                         )}
 
-                        {/* Volume Indicator (Top Right) - Only show on hover */}
+                        {/* Volume Indicator & Controls (Top Right) */}
                         <div className={`absolute top-4 right-4 z-40 flex gap-2 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
                             {/* Skip Button */}
                             <button
                                 onClick={playNext}
-                                className="p-3 rounded-full backdrop-blur-md border border-white/20 bg-black/40 hover:bg-white/10 transition-all duration-300"
+                                className="pointer-events-auto p-3 rounded-full backdrop-blur-md border border-white/20 bg-black/40 hover:bg-white/10 transition-all duration-300"
                                 title="Pular Música"
                             >
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
@@ -273,12 +238,11 @@ export default function PlayerPage() {
 
                             <button
                                 onClick={() => setMuted(!muted)}
-                                className={`p-3 rounded-full backdrop-blur-md border transition-all duration-300 ${muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-neon-green/20 border-neon-green text-neon-green'}`}
+                                className={`pointer-events-auto p-3 rounded-full backdrop-blur-md border transition-all duration-300 ${muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-neon-green/20 border-neon-green text-neon-green'}`}
                             >
                                 {muted ? <VolumeX /> : <Volume2 />}
                             </button>
                         </div>
-
 
                     </div>
 
@@ -291,7 +255,7 @@ export default function PlayerPage() {
                                     src={nowPlaying.thumbnail_url}
                                     className="w-20 h-20 object-cover rounded-lg shadow-lg shadow-neon-purple/20 ring-1 ring-white/10"
                                     alt="Album Art"
-                                    onError={(e) => e.target.style.display = 'none'} // Safe fallback
+                                    onError={(e) => e.target.style.display = 'none'}
                                 />
                             )}
                             <div className="max-w-md">
