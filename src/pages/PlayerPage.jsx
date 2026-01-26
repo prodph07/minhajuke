@@ -4,6 +4,36 @@ import { Music, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { useQueue } from '../hooks/useQueue';
 import { useEstablishment } from '../contexts/EstablishmentContext';
 
+// Local Error Boundary for the Player specifically
+class PlayerErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true };
+    }
+    componentDidCatch(error, errorInfo) {
+        console.error("PlayerErrorBoundary caught error:", error, errorInfo);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-black text-white">
+                    <p className="text-red-500 font-bold mb-4">Erro no Player</p>
+                    <button
+                        onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+                        className="px-4 py-2 bg-white/10 rounded hover:bg-white/20"
+                    >
+                        Recarregar
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 export default function PlayerPage() {
     const { nowPlaying, queue, playNext } = useQueue();
     const { establishment } = useEstablishment() || {}; // Safe usage if global player
@@ -40,6 +70,9 @@ export default function PlayerPage() {
                 const expectedTime = (now - startTime) / 1000;
 
                 // Get actual player time
+                // Add safeguard for strict mode TV browsers
+                if (!playerRef.current.getCurrentTime) return;
+
                 const actualTime = await playerRef.current.getCurrentTime();
 
                 const drift = Math.abs(expectedTime - actualTime);
@@ -72,11 +105,11 @@ export default function PlayerPage() {
 
     // Handle Mute/Unmute via API
     useEffect(() => {
-        if (playerRef.current) {
+        if (playerRef.current && ready) {
             if (muted) {
-                playerRef.current.mute();
+                playerRef.current.mute?.();
             } else {
-                playerRef.current.unMute();
+                playerRef.current.unMute?.();
             }
         }
     }, [muted, ready]);
@@ -93,8 +126,8 @@ export default function PlayerPage() {
         setReady(true);
 
         // Ensure muted and playing on start
-        event.target.mute();
-        event.target.playVideo();
+        event.target.mute?.();
+        event.target.playVideo?.();
     };
 
     const syncNow = async () => {
@@ -129,9 +162,9 @@ export default function PlayerPage() {
             // Force sync mute state
             if (playerRef.current) {
                 if (muted) {
-                    playerRef.current.mute();
+                    playerRef.current.mute?.();
                 } else {
-                    playerRef.current.unMute();
+                    playerRef.current.unMute?.();
                 }
             }
         }
@@ -168,16 +201,24 @@ export default function PlayerPage() {
                         {/* Player Container */}
                         <div className="w-full h-full pointer-events-none">
                             <div className="w-full h-full pointer-events-auto">
-                                <YouTube
-                                    // key={nowPlaying.video_id}  <-- REMOVED KEY to prevent unmounting
-                                    videoId={nowPlaying.video_id}
-                                    opts={opts}
-                                    onReady={onPlayerReady}
-                                    onStateChange={onPlayerStateChange}
-                                    onError={(e) => console.error('YouTube Error:', e)}
-                                    className="w-full h-full"
-                                    iframeClassName="w-full h-full object-cover"
-                                />
+                                <PlayerErrorBoundary>
+                                    {nowPlaying.video_id ? (
+                                        <YouTube
+                                            // key={nowPlaying.video_id}  <-- REMOVED KEY to prevent unmounting
+                                            videoId={nowPlaying.video_id}
+                                            opts={opts}
+                                            onReady={onPlayerReady}
+                                            onStateChange={onPlayerStateChange}
+                                            onError={(e) => console.error('YouTube Error:', e)}
+                                            className="w-full h-full"
+                                            iframeClassName="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-black">
+                                            <p className="text-gray-500">Video ID indefinido</p>
+                                        </div>
+                                    )}
+                                </PlayerErrorBoundary>
                             </div>
                         </div>
 
@@ -245,11 +286,12 @@ export default function PlayerPage() {
                     <div className="h-32 bg-[#0f0f0f] border-t border-white/10 flex items-center px-8 justify-between z-20 relative shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
                         {/* Current Song Info */}
                         <div className="flex items-center gap-6">
-                            {nowPlaying.thumbnail_url && (
+                            {(nowPlaying.thumbnail_url) && (
                                 <img
                                     src={nowPlaying.thumbnail_url}
                                     className="w-20 h-20 object-cover rounded-lg shadow-lg shadow-neon-purple/20 ring-1 ring-white/10"
                                     alt="Album Art"
+                                    onError={(e) => e.target.style.display = 'none'} // Safe fallback
                                 />
                             )}
                             <div className="max-w-md">
