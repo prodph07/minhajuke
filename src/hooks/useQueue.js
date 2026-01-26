@@ -131,9 +131,9 @@ export function useQueue() {
                 const now = Date.now();
                 const elapsedSec = (now - startTime) / 1000;
 
-                // If song ended more than 5 seconds ago
-                if (elapsedSec > nowPlaying.duration_sec + 5) {
-                    console.log('Heartbeat: Song expired, playing next...');
+                // If song ended more than 30 seconds ago (Relaxed from 5s)
+                if (elapsedSec > nowPlaying.duration_sec + 30) {
+                    console.log('Heartbeat: Song expired (over 30s past duration), playing next...');
                     playNext();
                 }
             } else if (!nowPlaying && queue.length > 0) {
