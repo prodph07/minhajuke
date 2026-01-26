@@ -18,7 +18,7 @@ export const searchVideos = async (query) => {
     if (!query) return [];
     if (!API_KEY) {
         console.error('YouTube API Key is missing');
-        return [];
+        throw new Error('CONFIG_ERROR: Chave da API não configurada.');
     }
 
     try {
@@ -29,7 +29,11 @@ export const searchVideos = async (query) => {
         if (!response.ok) {
             const errorData = await response.json();
             console.error('YouTube API Error:', errorData);
-            throw new Error('Failed to fetch videos');
+
+            if (response.status === 403) {
+                throw new Error('QUOTA_EXCEEDED: Limite da API do YouTube excedido ou chave inválida.');
+            }
+            throw new Error('API_ERROR: Falha ao buscar vídeos.');
         }
 
         const data = await response.json();
@@ -42,7 +46,7 @@ export const searchVideos = async (query) => {
         }));
     } catch (error) {
         console.error('Search error:', error);
-        return [];
+        throw error; // Re-throw to be caught by UI
     }
 };
 

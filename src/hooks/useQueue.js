@@ -32,7 +32,12 @@ export function useQueue() {
     // Fetch initial queue
     const fetchQueue = useCallback(async () => {
         const currentEstId = establishmentRef.current;
-        if (!establishment || !currentEstId) return;
+        console.log(`[useQueue] fetchQueue called. Establishment: ${establishment?.id}, Ref: ${currentEstId}`);
+
+        if (!establishment || !currentEstId) {
+            console.log('[useQueue] Missing establishment or ref, aborting.');
+            return;
+        }
 
         setLoading(true);
         // Get everything that is waiting OR playing
@@ -45,13 +50,14 @@ export function useQueue() {
 
         // STALE CHECK: If establishment changed while fetching, abort
         if (establishment.id !== establishmentRef.current) {
-            console.log('Stale fetch detected, ignoring.');
+            console.warn(`[useQueue] Stale fetch detected. FetchID: ${establishment.id}, RefID: ${establishmentRef.current}`);
             return;
         }
 
         if (error) {
-            console.error('Error fetching queue:', error);
+            console.error('[useQueue] Error fetching queue:', error);
         } else {
+            console.log(`[useQueue] Data fetched: ${data?.length} items.`);
             const playing = data.find(item => item.status === 'playing');
             const waiting = data.filter(item => item.status === 'waiting');
 
@@ -73,10 +79,13 @@ export function useQueue() {
 
     useEffect(() => {
         if (establishment) {
+            console.log(`[useQueue] Establishment changed/mounted: ${establishment.id}`);
             fetchQueue();
         } else {
+            console.log('[useQueue] No establishment in effect.');
             setQueue([]); // Clear if no establishment
             setNowPlaying(null);
+            setLoading(false);
         }
 
         // ADMIN/VIP ACTIVATION VIA URL
@@ -226,6 +235,9 @@ export function useQueue() {
             console.error('Error adding to queue:', error);
             throw error;
         }
+
+        // Refresh immediately
+        fetchQueue();
     };
 
     const updateStatus = async (id, status, extraFields = {}) => {
@@ -238,6 +250,11 @@ export function useQueue() {
             .eq('establishment_id', establishment.id); // Safety check
 
         if (error) console.error('Error updating status:', error);
+
+        // Note: playNext calls this, so it might trigger double fetch if we call it here AND in playNext. 
+        // But better safe (more consistent UI) than sorry. 
+        // Actually, playNext calls updateStatus twice. Let's NOT call fetchQueue here to avoid race/thrashing.
+        // We will call it manually in the actions.
     };
 
     const playNext = async () => {
@@ -257,11 +274,15 @@ export function useQueue() {
             // No more songs
             setNowPlaying(null);
         }
+
+        // Refresh immediately to update UI
+        fetchQueue();
     };
 
     const removeSong = async (id) => {
         if (!establishment) return;
         await updateStatus(id, 'removed');
+        fetchQueue();
     }
 
     return {

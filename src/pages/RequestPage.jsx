@@ -8,6 +8,7 @@ export default function RequestPage() {
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
     const [justAdded, setJustAdded] = useState(null);
+    const [error, setError] = useState(null); // New Error State
 
     const { addToQueue, queue, establishment } = useQueue();
     // Assuming useQueue returns establishment, or we can use useEstablishment context directly. 
@@ -21,11 +22,19 @@ export default function RequestPage() {
         const delayDebounceFn = setTimeout(async () => {
             if (query.trim()) {
                 setSearching(true);
-                const videos = await searchVideos(query);
-                setResults(videos);
-                setSearching(false);
+                setError(null); // Clear previous errors
+                try {
+                    const videos = await searchVideos(query);
+                    setResults(videos);
+                } catch (err) {
+                    setResults([]);
+                    setError(err.message || 'Erro ao buscar vídeos.');
+                } finally {
+                    setSearching(false);
+                }
             } else {
                 setResults([]);
+                setError(null);
             }
         }, 800); // 800ms delay
 
@@ -46,7 +55,7 @@ export default function RequestPage() {
             setQuery(''); // Clear search to reset state
             // setResults([]); // Optional: keep results or clear? Clearing feels cleaner after add.
         } catch (error) {
-            alert('Erro ao adicionar música.');
+            alert('Erro ao adicionar música: ' + error.message);
         }
     };
 
@@ -67,6 +76,14 @@ export default function RequestPage() {
                         {searching ? <Loader2 className="animate-spin" /> : <Search />}
                     </div>
                 </form>
+
+                {/* Error Message Alert */}
+                {error && (
+                    <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-4 rounded-xl text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+                        <div className="min-w-[4px] h-full bg-red-500 rounded-full" />
+                        <p>{error.includes('QUOTA') ? 'Sistema de busca temporariamente indisponível. Tente novamente mais tarde.' : error}</p>
+                    </div>
+                )}
 
                 {/* Results */}
                 <div className="space-y-3">
