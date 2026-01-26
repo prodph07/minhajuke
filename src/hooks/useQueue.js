@@ -134,12 +134,12 @@ export function useQueue() {
                 // If song ended more than 30 seconds ago (Relaxed from 5s)
                 if (elapsedSec > nowPlaying.duration_sec + 30) {
                     console.log('Heartbeat: Song expired (over 30s past duration), playing next...');
-                    playNext();
+                    playNext('heartbeat_expired');
                 }
             } else if (!nowPlaying && queue.length > 0) {
                 // Auto-start if nothing is playing
                 console.log('Heartbeat: Queue has items but nothing playing. Starting...');
-                playNext();
+                playNext('heartbeat_autostart');
             }
         }, 5000);
 
@@ -257,7 +257,8 @@ export function useQueue() {
         // We will call it manually in the actions.
     };
 
-    const playNext = async () => {
+    const playNext = async (reason = 'unknown') => {
+        console.log(`[useQueue] playNext called. Reason: ${reason}`);
         if (!establishment) return;
 
         // 1. Mark current playing as 'played'

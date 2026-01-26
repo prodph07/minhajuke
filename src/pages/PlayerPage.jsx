@@ -120,7 +120,26 @@ export default function PlayerPage() {
         console.log('Player State Change:', newState);
 
         if (newState === 0) { // ENDED
-            playNext();
+            // PREMATURE END PROTECTION
+            // Sometimes YouTube fires '0' immediately if there's an error or playback issue.
+            // We should only skip if we actually played meaningful content or if the duration matches.
+            try {
+                const currentTime = event.target.getCurrentTime();
+                const duration = event.target.getDuration();
+
+                console.log(`Player ENDED event. Time: ${currentTime}/${duration}`);
+
+                // If ended within first 5 seconds and total duration is > 30s, it's likely a glitch or error.
+                // UNLESS duration is very short (short videos).
+                if (duration > 30 && currentTime < 5) {
+                    console.warn("Ignored premature ENDED event (< 5s played).");
+                    return;
+                }
+            } catch (e) {
+                console.warn("Could not validate play time on ended event", e);
+            }
+
+            playNext('player_ended');
         }
     };
 
