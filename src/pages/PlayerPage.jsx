@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactPlayer from 'react-player';
+import YouTube from 'react-youtube';
 import { Music, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { useQueue } from '../hooks/useQueue';
 import { useEstablishment } from '../contexts/EstablishmentContext';
@@ -56,20 +56,19 @@ export default function PlayerPage() {
     // Player State
     const [ready, setReady] = useState(false);
     const [muted, setMuted] = useState(true); // Start muted for autoplay
-    const [isPlaying, setIsPlaying] = useState(true); // Always try to play
-    const [buffering, setBuffering] = useState(false);
+    const [playerState, setPlayerState] = useState(-1);
 
     // UI State
     const [showControls, setShowControls] = useState(false);
     const [showForceReady, setShowForceReady] = useState(false);
 
-    // Ref to hold the internal ReactPlayer instance
+    // Ref to hold the internal YouTube player instance
     const playerRef = useRef(null);
 
     // Reset state when video changes
     useEffect(() => {
         setReady(false);
-        setBuffering(true);
+        setPlayerState(-1);
         setShowForceReady(false);
 
         // Fallback: Force ready after 8s to unblock UI
@@ -77,7 +76,6 @@ export default function PlayerPage() {
             if (!ready) {
                 console.warn("Force Ready triggered due to timeout");
                 setReady(true);
-                setBuffering(false);
             }
         }, 8000);
 
@@ -88,13 +86,16 @@ export default function PlayerPage() {
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
-                if (nowPlaying?.started_at && playerRef.current && ready && isPlaying && !buffering) {
+                // Check if playing (state === 1)
+                if (nowPlaying?.started_at && playerRef.current && ready && playerState === 1) {
                     const startTime = new Date(nowPlaying.started_at).getTime();
                     const now = Date.now();
                     const expectedTime = (now - startTime) / 1000;
 
                     // Get actual player time safely
-                    const actualTime = playerRef.current.getCurrentTime ? playerRef.current.getCurrentTime() : null;
+                    // react-youtube exposes raw player object. getCurrentTime() is synchronous and returns number.
+                    if (!playerRef.current.getCurrentTime) return;
+                    const actualTime = playerRef.current.getCurrentTime();
 
                     if (actualTime === null || actualTime === undefined) return;
 
@@ -104,7 +105,7 @@ export default function PlayerPage() {
                     if (drift > 2.0) {
                         console.log(`Drift Detected (${drift.toFixed(1)}s). Seeking to ${expectedTime.toFixed(1)}s...`);
                         if (playerRef.current.seekTo) {
-                            playerRef.current.seekTo(expectedTime, 'seconds');
+                            playerRef.current.seekTo(expectedTime, true);
                         }
                     }
                 }
@@ -114,7 +115,7 @@ export default function PlayerPage() {
         }, 1000); // Check every 1 second
 
         return () => clearInterval(interval);
-    }, [nowPlaying?.started_at, ready, isPlaying, buffering]);
+    }, [nowPlaying?.started_at, ready, playerState]);
 
     // INITIAL SYNC LOGIC
     useEffect(() => {
@@ -127,7 +128,7 @@ export default function PlayerPage() {
                 if (elapsedSec > 2) {
                     console.log(`Initial Sync: Seeking to ${elapsedSec}s`);
                     if (playerRef.current.seekTo) {
-                        playerRef.current.seekTo(elapsedSec, 'seconds');
+                        playerRef.current.seekTo(elapsedSec, true);
                     }
                 }
             }
@@ -136,6 +137,21 @@ export default function PlayerPage() {
         }
     }, [nowPlaying?.video_id, nowPlaying?.started_at, ready]);
 
+    // Handle Mute/Unmute via API
+    useEffect(() => {
+        try {
+            if (playerRef.current && ready) {
+                if (muted) {
+                    playerRef.current.mute?.();
+                } else {
+                    playerRef.current.unMute?.();
+                }
+            }
+        } catch (e) {
+            console.warn("Mute toggle failed", e);
+        }
+    }, [muted, ready]);
+
 
     const requestUrl = establishment
         ? `${window.location.origin}/e/${establishment.slug}/request`
@@ -143,30 +159,41 @@ export default function PlayerPage() {
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(requestUrl)}`;
 
-    const onReadyHandler = () => {
-        console.log('ReactPlayer Ready');
+    const onPlayerReady = (event) => {
+        console.log('YouTube Player Ready');
+        playerRef.current = event.target;
         setReady(true);
+        if (muted) event.target.mute?.();
+        else event.target.unMute?.();
+        event.target.playVideo?.();
     };
 
-    const onStartHandler = () => {
-        console.log('ReactPlayer Started');
-        setBuffering(false);
-        setIsPlaying(true);
+    const onPlayerStateChange = (event) => {
+        const newState = event.data;
+        setPlayerState(newState);
+        console.log('Player State Change:', newState);
+
+        if (newState === 0) { // ENDED
+            playNext();
+        }
     };
 
-    const onBufferHandler = () => {
-        console.log('ReactPlayer Buffering...');
-        setBuffering(true);
-    };
-
-    const onEndedHandler = () => {
-        console.log('ReactPlayer Ended');
-        playNext();
-    };
-
-    const onErrorHandler = (e) => {
-        console.error('ReactPlayer Error:', e);
-        // Could try to skip or reload
+    const opts = {
+        height: '100%',
+        width: '100%',
+        playerVars: {
+            autoplay: 1,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            mute: 1,
+            origin: window.location.origin,
+            rel: 0,
+            showinfo: 0,
+            iv_load_policy: 3,
+            playsinline: 1
+        },
     };
 
     return (
@@ -183,33 +210,15 @@ export default function PlayerPage() {
                         <div className="w-full h-full pointer-events-none">
                             <div className="w-full h-full pointer-events-auto">
                                 <PlayerErrorBoundary>
-                                    <ReactPlayer
-                                        ref={playerRef}
+                                    <YouTube
                                         key={nowPlaying.video_id}
-                                        url={`https://www.youtube.com/watch?v=${nowPlaying.video_id}`}
-                                        width="100%"
-                                        height="100%"
-                                        playing={isPlaying}
-                                        muted={muted}
-                                        controls={false}
-                                        onReady={onReadyHandler}
-                                        onStart={onStartHandler}
-                                        onBuffer={onBufferHandler} // Detect buffering
-                                        onEnded={onEndedHandler}
-                                        onError={onErrorHandler}
-                                        config={{
-                                            youtube: {
-                                                playerVars: {
-                                                    showinfo: 0,
-                                                    modestbranding: 1,
-                                                    iv_load_policy: 3,
-                                                    rel: 0,
-                                                    disablekb: 1,
-                                                    fs: 0
-                                                }
-                                            }
-                                        }}
-                                        style={{ pointerEvents: 'none' }} // Prevent interaction hijack?
+                                        videoId={nowPlaying.video_id}
+                                        opts={opts}
+                                        onReady={onPlayerReady}
+                                        onStateChange={onPlayerStateChange}
+                                        onError={(e) => console.error('YouTube Error:', e)}
+                                        className="w-full h-full"
+                                        iframeClassName="w-full h-full object-cover"
                                     />
                                 </PlayerErrorBoundary>
                             </div>
@@ -232,7 +241,7 @@ export default function PlayerPage() {
                         )}
 
                         {/* Loading Overlay */}
-                        {(!ready || (buffering && showForceReady)) && (
+                        {(!ready || (playerState === 3 && showForceReady)) && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40">
                                 <div className="text-center animate-pulse mb-8">
                                     <div className="w-12 h-12 border-4 border-neon-green border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -240,17 +249,14 @@ export default function PlayerPage() {
                                         {!ready ? 'CARREGANDO PLAYER...' : 'BUFFERING...'}
                                     </p>
                                 </div>
-
                                 {showForceReady && (
-                                    <div className="flex gap-4">
-                                        <button
-                                            onClick={() => window.location.reload()}
-                                            className="px-6 py-2 bg-gray-800 border border-white/20 rounded hover:bg-gray-700 transition"
-                                        >
-                                            <RotateCcw className="inline w-4 h-4 mr-2" />
-                                            Recarregar Página
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className="mt-4 px-6 py-2 bg-gray-800 border border-white/20 rounded hover:bg-gray-700 transition"
+                                    >
+                                        <RotateCcw className="inline w-4 h-4 mr-2" />
+                                        Recarregar Página
+                                    </button>
                                 )}
                             </div>
                         )}
@@ -278,7 +284,6 @@ export default function PlayerPage() {
 
                     {/* FOOTER / INFO BAR */}
                     <div className="h-32 bg-[#0f0f0f] border-t border-white/10 flex items-center px-8 justify-between z-20 relative shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
-                        {/* Current Song Info */}
                         {/* Current Song Info */}
                         <div className="flex items-center gap-6">
                             {(nowPlaying.thumbnail_url) && (
