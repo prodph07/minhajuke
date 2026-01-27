@@ -63,6 +63,33 @@ export function EstablishmentProvider({ children }) {
         fetchEstablishment();
     }, [slug]);
 
+    // Realtime Updates for Settings (Magic Toggle)
+    useEffect(() => {
+        if (!establishment?.id) return;
+
+        console.log("Subscribing to realtime updates for establishment:", establishment.id);
+        const channel = supabase
+            .channel(`establishment-updates-${establishment.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'establishments',
+                    filter: `id=eq.${establishment.id}`
+                },
+                (payload) => {
+                    console.log("Establishment updated remotely:", payload.new);
+                    setEstablishment(payload.new);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [establishment?.id]);
+
     return (
         <EstablishmentContext.Provider value={{ establishment, loading, error }}>
             {children}

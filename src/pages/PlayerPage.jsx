@@ -121,10 +121,13 @@ export default function PlayerPage() {
         playerRef.current = event.target;
         setReady(true);
 
-        // Optimize for speed: Request lower video quality (240p)
-        // Note: YouTube API treats this as a suggestion, not a guarantee.
+        // Quality Selection: Low Res for TVs, HD for High End
+        const useScaleHack = settings.optimize_scale_hack !== false;
+        const targetQuality = useScaleHack ? 'small' : 'hd1080';
+
         if (event.target.setPlaybackQuality) {
-            event.target.setPlaybackQuality('small');
+            console.log(`Setting Playback Quality to: ${targetQuality}`);
+            event.target.setPlaybackQuality(targetQuality);
         }
 
         if (muted) event.target.mute?.();
@@ -216,7 +219,8 @@ export default function PlayerPage() {
             setTimeout(() => {
                 if (playerRef.current && playerRef.current.playVideo) {
                     playerRef.current.playVideo();
-                    playerRef.current.setPlaybackQuality?.('small');
+                    const useScaleHack = settings.optimize_scale_hack !== false;
+                    playerRef.current.setPlaybackQuality?.(useScaleHack ? 'small' : 'hd1080');
                 }
             }, 100);
         }
@@ -232,6 +236,9 @@ export default function PlayerPage() {
             playerRef.current.playVideo();
         }
     };
+
+    // Derived State for Optimization (Default TRUE if undefined, handles string 'false')
+    const useScaleHack = String(settings?.optimize_scale_hack) !== 'false';
 
     return (
         <div
@@ -264,7 +271,10 @@ export default function PlayerPage() {
                     >
                         {/* Player Container - CSS HACK for Low Res */}
                         <div className="w-full h-full pointer-events-none overflow-hidden">
-                            <div className="w-[20%] h-[20%] origin-top-left scale-[5] pointer-events-auto">
+                            <div
+                                key={useScaleHack ? 'hack-active' : 'hack-disabled'}
+                                className={`origin-top-left pointer-events-auto ${useScaleHack ? 'w-[20%] h-[20%] scale-[5]' : 'w-full h-full'}`}
+                            >
                                 <PlayerErrorBoundary>
                                     <YouTube
                                         // key removed to prevent remounting/iframe reload
@@ -377,7 +387,6 @@ export default function PlayerPage() {
                     </div>
                 </>
             ) : (
-                /* IDLE STATE (Empty Queue) - NO UI HIDING HERE */
                 <div className="flex-1 flex flex-col items-center justify-center bg-black p-4 relative overflow-hidden">
                     {/* Background Effects REMOVED for Lite Mode */}
 
@@ -406,6 +415,8 @@ export default function PlayerPage() {
                     </div>
                 </div>
             )}
+
+
         </div>
     );
 }
