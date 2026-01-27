@@ -313,13 +313,13 @@ export default function SettingsTab({ establishment }) {
                     <div className="space-y-6">
                         <div className="space-y-2">
                             <label className="text-sm text-gray-400">Motor de Busca Principal</label>
-                            <div className="grid grid-cols-2 gap-4">
-                                <label className={`border border-white/10 rounded-lg p-4 flex flex-col items-center gap-2 cursor-pointer transition-all ${settings.search_provider !== 'lastfm' ? 'bg-red-500/20 border-red-500' : 'bg-black/30 hover:bg-white/5'}`}>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <label className={`border border-white/10 rounded-lg p-4 flex flex-col items-center gap-2 cursor-pointer transition-all ${settings.search_provider === 'youtube' ? 'bg-red-500/20 border-red-500' : 'bg-black/30 hover:bg-white/5'}`}>
                                     <input
                                         type="radio"
                                         name="search_provider"
                                         value="youtube"
-                                        checked={settings.search_provider !== 'lastfm'}
+                                        checked={settings.search_provider === 'youtube'}
                                         onChange={handleChange}
                                         className="sr-only"
                                     />
@@ -338,6 +338,19 @@ export default function SettingsTab({ establishment }) {
                                     />
                                     <span className="font-bold text-lg">Last.fm + Cache</span>
                                     <span className="text-xs text-center text-gray-400">Economiza 99% da cota. Requer chave API.</span>
+                                </label>
+
+                                <label className={`border border-white/10 rounded-lg p-4 flex flex-col items-center gap-2 cursor-pointer transition-all ${settings.search_provider === 'unlimited' ? 'bg-purple-500/20 border-purple-500' : 'bg-black/30 hover:bg-white/5'}`}>
+                                    <input
+                                        type="radio"
+                                        name="search_provider"
+                                        value="unlimited"
+                                        checked={settings.search_provider === 'unlimited'}
+                                        onChange={handleChange}
+                                        className="sr-only"
+                                    />
+                                    <span className="font-bold text-lg">Ilimitado</span>
+                                    <span className="text-xs text-center text-gray-400">Zero Cota. Requer Edge Function.</span>
                                 </label>
                             </div>
                         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 import { Search, Plus, Check, Loader2, Music2 } from 'lucide-react';
 import { searchVideos } from '../services/youtubeService';
 import { searchTracksLastFm } from '../services/lastFmService';
@@ -23,9 +24,25 @@ export default function RequestPage() {
                 try {
                     let videos = [];
                     const settings = establishment?.settings || {};
+                    const provider = settings.search_provider;
 
-                    // SMART SEARCH: Use Last.fm if configured
-                    if (settings.search_provider === 'lastfm' && settings.lastfm_api_key) {
+                    if (provider === 'unlimited') {
+                        // UNLIMITED MODE: Scrape YouTube via Edge Function (Zero Quota)
+                        const { data, error } = await supabase.functions.invoke('resolve-video', {
+                            body: { query }
+                        });
+
+                        if (error) {
+                            console.error("Unlimited Search Error:", error);
+                            // Fallback to standard API if scraping fails? Or show error?
+                            // Let's fallback to standard API to not break UX, but warn.
+                            videos = await searchVideos(query);
+                        } else {
+                            videos = data || [];
+                        }
+                    }
+                    else if (provider === 'lastfm' && settings.lastfm_api_key) {
+                        // LAST.FM MODE: Metadata Search (Low Quota)
                         try {
                             videos = await searchTracksLastFm(query, settings.lastfm_api_key);
                         } catch (e) {
@@ -33,7 +50,7 @@ export default function RequestPage() {
                             videos = await searchVideos(query);
                         }
                     } else {
-                        // Classic YouTube Search
+                        // STANDARD MODE: YouTube API (High Quota)
                         videos = await searchVideos(query);
                     }
 
@@ -70,18 +87,42 @@ export default function RequestPage() {
             if (video.is_lastfm && !video.video_id) {
                 setResolvingId(tempId);
                 const searchQ = `${video.channel_title} ${video.title} official audio`;
-                console.log("Resolving Last.fm track via YouTube:", searchQ);
+                console.log("Resolving Last.fm track:", searchQ);
 
-                const ytResults = await searchVideos(searchQ);
+                let bestMatch = null;
+                const settings = establishment?.settings || {};
 
-                if (ytResults && ytResults.length > 0) {
-                    const bestMatch = ytResults[0];
+                if (settings.search_provider === 'unlimited') {
+                    // Method A: Edge Function (yt-search) - Unlimited Quota
+                    console.log("Using Unlimited Resolve (Edge Function)...");
+                    const { data, error } = await supabase.functions.invoke('resolve-video', {
+                        body: { query: searchQ }
+                    });
+
+                    if (error) {
+                        console.error("Edge Function Error:", error);
+                        const msg = error.message || (error.context ? JSON.stringify(error.context) : 'Erro desconhecido');
+                        throw new Error(`Erro na Função Ilimitada: ${msg}`);
+                    }
+                    if (!data || !data.video_id) {
+                        throw new Error("Vídeo não encontrado (Ilimitado).");
+                    }
+                    bestMatch = data;
+                } else {
+                    // Method B: Official YouTube API - Standard Quota
+                    console.log("Using YouTube API Resolve...");
+                    const ytResults = await searchVideos(searchQ);
+                    if (ytResults && ytResults.length > 0) {
+                        bestMatch = ytResults[0];
+                    }
+                }
+
+                if (bestMatch) {
                     finalVideo = {
                         ...video,
                         video_id: bestMatch.video_id,
-                        // Update thumbnail to YouTube's to ensure 16:9 ratio and availability
-                        thumbnail_url: bestMatch.thumbnail_url,
-                        // Note: We keep Last.fm Title/Artist for cleaner UI display!
+                        // Prefer YouTube thumbnail if available (better ratio), else keep Last.fm
+                        thumbnail_url: bestMatch.thumbnail_url || video.thumbnail_url,
                     };
                 } else {
                     throw new Error("Música não encontrada no YouTube.");
@@ -137,7 +178,13 @@ export default function RequestPage() {
                         return (
                             <div key={itemKey + (video.channel_title || '')} className="bg-white/5 p-4 rounded-xl flex flex-col sm:flex-row items-center gap-4 border border-transparent hover:border-white/10 transition-all">
                                 <div className="flex items-center gap-4 w-full sm:w-auto">
-                                    <img src={video.thumbnail_url} alt={video.title} className="w-24 h-18 object-cover rounded-lg shadow-md" />
+                                    {video.thumbnail_url ? (
+                                        <img src={video.thumbnail_url} alt={video.title} className="w-24 h-18 object-cover rounded-lg shadow-md" />
+                                    ) : (
+                                        <div className="w-24 h-18 bg-white/10 rounded-lg flex items-center justify-center text-white/20">
+                                            <Music2 size={32} />
+                                        </div>
+                                    )}
                                     <div className="flex-1 min-w-0 sm:hidden">
                                         <h3 className="font-bold truncate text-white">{video.title}</h3>
                                         <p className="text-sm text-gray-400 truncate">{video.channel_title}</p>
