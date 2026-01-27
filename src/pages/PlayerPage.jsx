@@ -50,7 +50,7 @@ const SafeImage = ({ src, alt, className, ...props }) => {
 };
 
 export default function PlayerPage() {
-    const { nowPlaying, queue, playNext } = useQueue();
+    const { nowPlaying, queue, playNext } = useQueue({ manager: true });
     const { establishment } = useEstablishment() || {}; // Safe usage if global player
 
     // Player State
