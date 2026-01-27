@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Check, Loader2, Music2 } from 'lucide-react';
 import { searchVideos } from '../services/youtubeService';
+import { searchTracksLastFm } from '../services/lastFmService';
 import { useQueue } from '../hooks/useQueue';
 
 export default function RequestPage() {
@@ -8,23 +9,34 @@ export default function RequestPage() {
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
     const [justAdded, setJustAdded] = useState(null);
-    const [error, setError] = useState(null); // New Error State
+    const [resolvingId, setResolvingId] = useState(null); // Track which item is being resolved
+    const [error, setError] = useState(null);
 
     const { addToQueue, queue, establishment } = useQueue();
-    // Assuming useQueue returns establishment, or we can use useEstablishment context directly. 
-    // Wait, useQueue calls useEstablishment inside, but doesn't return it.
-    // Let's import useEstablishment here for cleaner code.
-
-    // Let's rely on useEstablishment hook directly.
 
     // AUTO-SEARCH (DEBOUNCE)
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
             if (query.trim()) {
                 setSearching(true);
-                setError(null); // Clear previous errors
+                setError(null);
                 try {
-                    const videos = await searchVideos(query);
+                    let videos = [];
+                    const settings = establishment?.settings || {};
+
+                    // SMART SEARCH: Use Last.fm if configured
+                    if (settings.search_provider === 'lastfm' && settings.lastfm_api_key) {
+                        try {
+                            videos = await searchTracksLastFm(query, settings.lastfm_api_key);
+                        } catch (e) {
+                            console.warn("Last.fm failed, falling back to YouTube", e);
+                            videos = await searchVideos(query);
+                        }
+                    } else {
+                        // Classic YouTube Search
+                        videos = await searchVideos(query);
+                    }
+
                     setResults(videos);
                 } catch (err) {
                     setResults([]);
@@ -36,10 +48,10 @@ export default function RequestPage() {
                 setResults([]);
                 setError(null);
             }
-        }, 800); // 800ms delay
+        }, 800);
 
         return () => clearTimeout(delayDebounceFn);
-    }, [query]);
+    }, [query, establishment]);
 
     // Manual search (optional now, but good for immediate feedback)
     const handleSearch = (e) => {
@@ -48,13 +60,41 @@ export default function RequestPage() {
     };
 
     const handleAdd = async (video) => {
+        // Use title as tempororary ID for Last.fm items if video_id is missing
+        const tempId = video.video_id || video.title;
+
         try {
-            await addToQueue(video);
-            setJustAdded(video.video_id);
+            let finalVideo = video;
+
+            // RESOLVE LOGIC: If item comes from Last.fm, we need to find a YouTube ID
+            if (video.is_lastfm && !video.video_id) {
+                setResolvingId(tempId);
+                const searchQ = `${video.channel_title} ${video.title} official audio`;
+                console.log("Resolving Last.fm track via YouTube:", searchQ);
+
+                const ytResults = await searchVideos(searchQ);
+
+                if (ytResults && ytResults.length > 0) {
+                    const bestMatch = ytResults[0];
+                    finalVideo = {
+                        ...video,
+                        video_id: bestMatch.video_id,
+                        // Update thumbnail to YouTube's to ensure 16:9 ratio and availability
+                        thumbnail_url: bestMatch.thumbnail_url,
+                        // Note: We keep Last.fm Title/Artist for cleaner UI display!
+                    };
+                } else {
+                    throw new Error("Música não encontrada no YouTube.");
+                }
+            }
+
+            await addToQueue(finalVideo);
+            setResolvingId(null);
+            setJustAdded(tempId); // Use consistent ID for UI feedback
             setTimeout(() => setJustAdded(null), 2000);
-            setQuery(''); // Clear search to reset state
-            // setResults([]); // Optional: keep results or clear? Clearing feels cleaner after add.
+            setQuery('');
         } catch (error) {
+            setResolvingId(null);
             alert('Erro ao adicionar música: ' + error.message);
         }
     };
@@ -87,43 +127,56 @@ export default function RequestPage() {
 
                 {/* Results */}
                 <div className="space-y-3">
-                    {results.map((video) => (
-                        <div key={video.video_id} className="bg-white/5 p-4 rounded-xl flex flex-col sm:flex-row items-center gap-4 border border-transparent hover:border-white/10 transition-all">
-                            <div className="flex items-center gap-4 w-full sm:w-auto">
-                                <img src={video.thumbnail_url} alt={video.title} className="w-24 h-18 object-cover rounded-lg shadow-md" />
-                                <div className="flex-1 min-w-0 sm:hidden">
-                                    <h3 className="font-bold truncate text-white">{video.title}</h3>
+                    {results.map((video) => {
+                        // Unique ID for UI tracking: Match the logic in handleAdd
+                        const itemKey = video.video_id || video.title;
+
+                        const isResolving = resolvingId === itemKey;
+                        const isAdded = justAdded && justAdded === itemKey;
+
+                        return (
+                            <div key={itemKey + (video.channel_title || '')} className="bg-white/5 p-4 rounded-xl flex flex-col sm:flex-row items-center gap-4 border border-transparent hover:border-white/10 transition-all">
+                                <div className="flex items-center gap-4 w-full sm:w-auto">
+                                    <img src={video.thumbnail_url} alt={video.title} className="w-24 h-18 object-cover rounded-lg shadow-md" />
+                                    <div className="flex-1 min-w-0 sm:hidden">
+                                        <h3 className="font-bold truncate text-white">{video.title}</h3>
+                                        <p className="text-sm text-gray-400 truncate">{video.channel_title}</p>
+                                    </div>
+                                </div>
+
+                                <div className="hidden sm:block flex-1 min-w-0">
+                                    <h3 className="font-bold truncate text-lg text-white">{video.title}</h3>
                                     <p className="text-sm text-gray-400 truncate">{video.channel_title}</p>
                                 </div>
-                            </div>
 
-                            <div className="hidden sm:block flex-1 min-w-0">
-                                <h3 className="font-bold truncate text-lg text-white">{video.title}</h3>
-                                <p className="text-sm text-gray-400 truncate">{video.channel_title}</p>
+                                <button
+                                    onClick={() => handleAdd(video)}
+                                    disabled={isAdded || isResolving}
+                                    className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold uppercase tracking-widest transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg ${isAdded
+                                        ? 'bg-neon-green text-black'
+                                        : 'bg-white text-black hover:bg-gray-200'
+                                        }`}
+                                >
+                                    {isResolving ? (
+                                        <>
+                                            <Loader2 size={20} className="animate-spin" />
+                                            Buscando...
+                                        </>
+                                    ) : isAdded ? (
+                                        <>
+                                            <Check size={20} />
+                                            Feito!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus size={20} />
+                                            Adicionar
+                                        </>
+                                    )}
+                                </button>
                             </div>
-
-                            <button
-                                onClick={() => handleAdd(video)}
-                                disabled={justAdded === video.video_id}
-                                className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold uppercase tracking-widest transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg ${justAdded === video.video_id
-                                    ? 'bg-neon-green text-black'
-                                    : 'bg-white text-black hover:bg-gray-200'
-                                    }`}
-                            >
-                                {justAdded === video.video_id ? (
-                                    <>
-                                        <Check size={20} />
-                                        Feito!
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus size={20} />
-                                        Adicionar
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    ))}
+                        )
+                    })}
                 </div>
             </section>
 

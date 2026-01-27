@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Save, AlertTriangle, Clock, Hash, Tag, CheckCircle, Monitor, RotateCw } from 'lucide-react';
+import { Save, AlertTriangle, Clock, Hash, Tag, CheckCircle, Monitor, RotateCw, Search } from 'lucide-react';
 
 export default function SettingsTab({ establishment }) {
     // Parse settings or use defaults
@@ -17,7 +17,9 @@ export default function SettingsTab({ establishment }) {
         optimize_no_logs: true,
         theme_primary_color: '#b026ff',
         theme_secondary_color: '#00ff41',
-        background_image_url: ''
+        background_image_url: '',
+        search_provider: 'youtube',
+        lastfm_api_key: ''
     };
 
     const [settings, setSettings] = useState({ ...defaultSettings, ...(establishment.settings || {}) });
@@ -299,6 +301,63 @@ export default function SettingsTab({ establishment }) {
                                 className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-white outline-none"
                             />
                         </div>
+                    </div>
+                </section>
+
+                {/* 4. INTEGRAÇÕES (BUSCA) */}
+                <section className="bg-white/5 border border-white/10 p-6 rounded-xl">
+                    <h3 className="text-xl font-bold text-pink-500 mb-4 flex items-center gap-2">
+                        <Search size={20} />
+                        Provedor de Busca
+                    </h3>
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-400">Motor de Busca Principal</label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <label className={`border border-white/10 rounded-lg p-4 flex flex-col items-center gap-2 cursor-pointer transition-all ${settings.search_provider !== 'lastfm' ? 'bg-red-500/20 border-red-500' : 'bg-black/30 hover:bg-white/5'}`}>
+                                    <input
+                                        type="radio"
+                                        name="search_provider"
+                                        value="youtube"
+                                        checked={settings.search_provider !== 'lastfm'}
+                                        onChange={handleChange}
+                                        className="sr-only"
+                                    />
+                                    <span className="font-bold text-lg">YouTube</span>
+                                    <span className="text-xs text-center text-gray-400">Padrão. Pesquisa direta, gasta muita cota.</span>
+                                </label>
+
+                                <label className={`border border-white/10 rounded-lg p-4 flex flex-col items-center gap-2 cursor-pointer transition-all ${settings.search_provider === 'lastfm' ? 'bg-pink-500/20 border-pink-500' : 'bg-black/30 hover:bg-white/5'}`}>
+                                    <input
+                                        type="radio"
+                                        name="search_provider"
+                                        value="lastfm"
+                                        checked={settings.search_provider === 'lastfm'}
+                                        onChange={handleChange}
+                                        className="sr-only"
+                                    />
+                                    <span className="font-bold text-lg">Last.fm + Cache</span>
+                                    <span className="text-xs text-center text-gray-400">Economiza 99% da cota. Requer chave API.</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {settings.search_provider === 'lastfm' && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <label className="text-sm text-gray-400">API Key da Last.fm</label>
+                                <input
+                                    type="text"
+                                    name="lastfm_api_key"
+                                    value={settings.lastfm_api_key || ''}
+                                    onChange={handleChange}
+                                    placeholder="Cole sua chave aqui (32 caracteres)"
+                                    className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-pink-500 outline-none font-mono"
+                                />
+                                <p className="text-xs text-gray-500">
+                                    Crie uma conta em <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener noreferrer" className="text-pink-400 hover:underline">last.fm/api</a> para obter a chave gratuita.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </section>
 
