@@ -225,9 +225,12 @@ export default function PlayerPage() {
                         onMouseEnter={() => setShowControls(true)}
                         onMouseLeave={() => setShowControls(false)}
                     >
-                        {/* Player Container */}
-                        <div className="w-full h-full pointer-events-none">
-                            <div className="w-full h-full pointer-events-auto">
+                        {/* Player Container - CSS HACK for Low Res 
+                            Forces browser to treat player as 20% size (approx 240p on 1080p screens),
+                            then scales it up 5x to fill screen visually.
+                        */}
+                        <div className="w-full h-full pointer-events-none overflow-hidden">
+                            <div className="w-[20%] h-[20%] origin-top-left scale-[5] pointer-events-auto">
                                 <PlayerErrorBoundary>
                                     <YouTube
                                         // key removed to prevent remounting/iframe reload
