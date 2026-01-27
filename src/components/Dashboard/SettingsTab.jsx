@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Save, AlertTriangle, Clock, Hash, Tag, CheckCircle } from 'lucide-react';
+import { Save, AlertTriangle, Clock, Hash, Tag, CheckCircle, Monitor, RotateCw } from 'lucide-react';
 
 export default function SettingsTab({ establishment }) {
     // Parse settings or use defaults
@@ -10,7 +10,14 @@ export default function SettingsTab({ establishment }) {
         max_duration_seconds: 600,
         forbidden_keywords: [],
         auto_approve: true,
-        welcome_message: "Peça sua música favorita!"
+        welcome_message: "Peça sua música favorita!",
+        ultra_performance_mode: false,
+        force_reload_interval: 0,
+        optimize_scale_hack: true,
+        optimize_no_logs: true,
+        theme_primary_color: '#b026ff',
+        theme_secondary_color: '#00ff41',
+        background_image_url: ''
     };
 
     const [settings, setSettings] = useState({ ...defaultSettings, ...(establishment.settings || {}) });
@@ -45,7 +52,8 @@ export default function SettingsTab({ establishment }) {
                 ...settings,
                 max_requests_per_user: parseInt(settings.max_requests_per_user),
                 limit_window_minutes: parseInt(settings.limit_window_minutes),
-                max_duration_seconds: parseInt(settings.max_duration_seconds)
+                max_duration_seconds: parseInt(settings.max_duration_seconds),
+                force_reload_interval: parseInt(settings.force_reload_interval || 0)
             };
 
             const { error } = await supabase
@@ -156,6 +164,81 @@ export default function SettingsTab({ establishment }) {
                                 />
                                 <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
                             </label>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 2.5 PERFORMANCE (TV) */}
+                <section className="bg-white/5 border border-white/10 p-6 rounded-xl">
+                    <h3 className="text-xl font-bold text-blue-400 mb-4 flex items-center gap-2">
+                        <Monitor size={20} />
+                        Performance (TV)
+                    </h3>
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
+                            <div>
+                                <span className="block text-white font-bold">Modo Ultra Performance</span>
+                                <span className="text-xs text-gray-500">Oculta TODA a interface (QR Code, nomes) após 10s de música.</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="ultra_performance_mode"
+                                    checked={settings.ultra_performance_mode || false}
+                                    onChange={handleChange}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                            </label>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
+                            <div>
+                                <span className="block text-white font-bold">Forçar Baixa Resolução (Zoom Hack)</span>
+                                <span className="text-xs text-gray-500">Renderiza pequeno (240p) e dá zoom. Essencial para TVs antigas.</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="optimize_scale_hack"
+                                    checked={settings.optimize_scale_hack !== false}
+                                    onChange={handleChange}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                            </label>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
+                            <div>
+                                <span className="block text-white font-bold">Desativar Logs (Console)</span>
+                                <span className="text-xs text-gray-500">Evita que logs de erro encham a memória do navegador.</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="optimize_no_logs"
+                                    checked={settings.optimize_no_logs !== false}
+                                    onChange={handleChange}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                            </label>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-400 flex items-center gap-2">
+                                <RotateCw size={14} /> Recarregamento Forçado (Auto-Refresh)
+                            </label>
+                            <input
+                                type="number"
+                                name="force_reload_interval"
+                                value={settings.force_reload_interval || 0}
+                                onChange={handleChange}
+                                placeholder="0 = Desativado"
+                                className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-blue-500 outline-none transition-colors"
+                            />
+                            <p className="text-xs text-gray-500">Reinicia a página a cada X músicas para limpar a memória RAM da TV. (Recomendado: 30)</p>
                         </div>
                     </div>
                 </section>

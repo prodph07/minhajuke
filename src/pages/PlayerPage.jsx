@@ -132,23 +132,59 @@ export default function PlayerPage() {
         event.target.playVideo?.();
     };
 
+    // SETTINGS
+    const settings = establishment?.settings || {};
+
+    // ULTRA PERFORMANCE STATE
+    const [hideUI, setHideUI] = useState(false);
+    const uiTimerRef = useRef(null);
+
+    const resetUITimer = () => {
+        setHideUI(false);
+        if (settings.ultra_performance_mode && playerState === 1) { // Only if playing and mode enabled
+            clearTimeout(uiTimerRef.current);
+            uiTimerRef.current = setTimeout(() => {
+                setHideUI(true);
+            }, 10000); // 10s
+        }
+    };
+
+    // Reset UI timer on any interaction or state change
+    useEffect(() => {
+        resetUITimer();
+        return () => clearTimeout(uiTimerRef.current);
+    }, [playerState, settings.ultra_performance_mode, nowPlaying]);
+
+    const handleMouseMove = () => {
+        resetUITimer();
+    };
+
+
     const onPlayerStateChange = (event) => {
         const newState = event.data;
         setPlayerState(newState);
         console.log('Player State Change:', newState);
 
         if (newState === 0) { // ENDED
-            // ... (premature end logic) ...
-            try {
-                // ...
-            } catch (e) {
-                console.warn("Could not validate play time on ended event", e);
+            // FORCE RELOAD LOGIC
+            if (settings.force_reload_interval > 0) {
+                const currentCount = parseInt(localStorage.getItem('param_reload_count') || '0') + 1;
+                console.log(`Song Ended. Session Count: ${currentCount}/${settings.force_reload_interval}`);
+
+                if (currentCount >= settings.force_reload_interval) {
+                    console.warn("FORCE RELOAD TRIGGERED (Memory Optimization)");
+                    localStorage.setItem('param_reload_count', '0');
+                    window.location.reload();
+                    return; // Stop execution
+                } else {
+                    localStorage.setItem('param_reload_count', currentCount.toString());
+                }
             }
 
             playNext('player_ended');
         }
 
-        if (newState === 5) { // CUED (Video loaded but not playing)
+        if (newState === 5) { // CUED
             console.log('Video CUED. Forcing play...');
             event.target.playVideo?.();
         }
@@ -178,7 +214,7 @@ export default function PlayerPage() {
             console.log("New video detected. Forcing play...");
             // Small functionality delay to ensure internal state is ready
             setTimeout(() => {
-                if (playerRef.current.playVideo) {
+                if (playerRef.current && playerRef.current.playVideo) {
                     playerRef.current.playVideo();
                     playerRef.current.setPlaybackQuality?.('small');
                 }
@@ -186,12 +222,9 @@ export default function PlayerPage() {
         }
     }, [nowPlaying?.video_id, ready]);
 
-    // ... (existing mute effect) ...
 
     // START PARTY OVERLAY STATE
     const [hasInteracted, setHasInteracted] = useState(false);
-
-    // ... (existing effects)
 
     const handleInteraction = () => {
         setHasInteracted(true);
@@ -201,7 +234,11 @@ export default function PlayerPage() {
     };
 
     return (
-        <div className="relative h-screen w-screen bg-black overflow-hidden flex flex-col font-sans text-white selection:bg-neon-green selection:text-black">
+        <div
+            onMouseMove={handleMouseMove}
+            className="relative h-screen w-screen bg-black overflow-hidden flex flex-col font-sans text-white selection:bg-neon-green selection:text-black cursor-none" // hidden cursor by default, handle via CSS if needed
+            style={{ cursor: hideUI ? 'none' : 'default' }}
+        >
 
             {/* INTERACTION OVERLAY (Browser Autoplay Policy) */}
             {!hasInteracted && nowPlaying && (
@@ -225,10 +262,7 @@ export default function PlayerPage() {
                         onMouseEnter={() => setShowControls(true)}
                         onMouseLeave={() => setShowControls(false)}
                     >
-                        {/* Player Container - CSS HACK for Low Res 
-                            Forces browser to treat player as 20% size (approx 240p on 1080p screens),
-                            then scales it up 5x to fill screen visually.
-                        */}
+                        {/* Player Container - CSS HACK for Low Res */}
                         <div className="w-full h-full pointer-events-none overflow-hidden">
                             <div className="w-[20%] h-[20%] origin-top-left scale-[5] pointer-events-auto">
                                 <PlayerErrorBoundary>
@@ -248,7 +282,7 @@ export default function PlayerPage() {
 
                         {/* Unmute / Control Overlay */}
                         {(muted || !ready) && (
-                            <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+                            <div className={`absolute inset-0 z-30 flex items-center justify-center pointer-events-none transition-opacity duration-500 ${hideUI ? 'opacity-0' : 'opacity-100'}`}>
                                 {/* Centered Unmute Prompt */}
                                 {ready && muted && (
                                     <button
@@ -284,7 +318,7 @@ export default function PlayerPage() {
                         )}
 
                         {/* Volume Indicator & Controls (Top Right) */}
-                        <div className={`absolute top-4 right-4 z-40 flex gap-2 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+                        <div className={`absolute top-4 right-4 z-40 flex gap-2 transition-opacity duration-500 ${showControls && !hideUI ? 'opacity-100' : 'opacity-0'}`}>
                             {/* Skip Button */}
                             <button
                                 onClick={playNext}
@@ -305,7 +339,7 @@ export default function PlayerPage() {
                     </div>
 
                     {/* FOOTER / INFO BAR */}
-                    <div className="h-32 bg-zinc-950 border-t border-zinc-800 flex items-center px-8 justify-between z-20 relative">
+                    <div className={`h-32 bg-zinc-950 border-t border-zinc-800 flex items-center px-8 justify-between z-20 relative transition-all duration-1000 ${hideUI ? 'opacity-0 translate-y-32' : 'opacity-100 translate-y-0'}`}>
                         {/* Current Song Info */}
                         <div className="flex items-center gap-6">
                             {(nowPlaying.thumbnail_url) && (
@@ -343,7 +377,7 @@ export default function PlayerPage() {
                     </div>
                 </>
             ) : (
-                /* IDLE STATE (Empty Queue) */
+                /* IDLE STATE (Empty Queue) - NO UI HIDING HERE */
                 <div className="flex-1 flex flex-col items-center justify-center bg-black p-4 relative overflow-hidden">
                     {/* Background Effects REMOVED for Lite Mode */}
 

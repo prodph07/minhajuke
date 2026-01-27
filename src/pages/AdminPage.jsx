@@ -166,8 +166,6 @@ export default function AdminPage() {
                 ) : activeTab === 'settings' ? (
                     /* === SETTINGS TAB === */
                     <SettingsTab establishment={establishment} />
-                ) : activeTab === 'settings' ? (
-                    <SettingsTab establishment={establishment} />
                 ) : (
                     /* === DASHBOARD TAB === */
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
