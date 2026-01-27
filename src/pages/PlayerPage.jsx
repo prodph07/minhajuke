@@ -109,6 +109,13 @@ export default function PlayerPage() {
         console.log('YouTube Player Ready');
         playerRef.current = event.target;
         setReady(true);
+
+        // Optimize for speed: Request lower video quality (240p)
+        // Note: YouTube API treats this as a suggestion, not a guarantee.
+        if (event.target.setPlaybackQuality) {
+            event.target.setPlaybackQuality('small');
+        }
+
         if (muted) event.target.mute?.();
         else event.target.unMute?.();
         event.target.playVideo?.();
@@ -189,7 +196,7 @@ export default function PlayerPage() {
                                 {ready && muted && (
                                     <button
                                         onClick={() => setMuted(false)}
-                                        className="pointer-events-auto bg-black/60 backdrop-blur-md border border-neon-green/50 text-neon-green font-bold py-4 px-8 rounded-full shadow-[0_0_30px_rgba(0,255,65,0.3)] hover:scale-105 hover:bg-neon-green hover:text-black transition-all duration-300 flex items-center gap-3 animate-pulse"
+                                        className="pointer-events-auto bg-zinc-900 border border-neon-green/50 text-neon-green font-bold py-4 px-8 rounded-full shadow-xl hover:scale-105 hover:bg-neon-green hover:text-black transition-all duration-300 flex items-center gap-3"
                                     >
                                         <Volume2 className="w-6 h-6" />
                                         ATIVAR SOM
@@ -200,8 +207,8 @@ export default function PlayerPage() {
 
                         {/* Loading Overlay */}
                         {(!ready || (playerState === 3 && showForceReady)) && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40">
-                                <div className="text-center animate-pulse mb-8">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-40">
+                                <div className="text-center mb-8">
                                     <div className="w-12 h-12 border-4 border-neon-green border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                                     <p className="text-neon-green text-xl font-bold tracking-widest">
                                         {!ready ? 'CARREGANDO PLAYER...' : 'BUFFERING...'}
@@ -210,7 +217,7 @@ export default function PlayerPage() {
                                 {showForceReady && (
                                     <button
                                         onClick={() => window.location.reload()}
-                                        className="mt-4 px-6 py-2 bg-gray-800 border border-white/20 rounded hover:bg-gray-700 transition"
+                                        className="mt-4 px-6 py-2 bg-zinc-800 border border-zinc-700 rounded hover:bg-zinc-700 transition"
                                     >
                                         <RotateCcw className="inline w-4 h-4 mr-2" />
                                         Recarregar Página
@@ -224,7 +231,7 @@ export default function PlayerPage() {
                             {/* Skip Button */}
                             <button
                                 onClick={playNext}
-                                className="pointer-events-auto p-3 rounded-full backdrop-blur-md border border-white/20 bg-black/40 hover:bg-white/10 transition-all duration-300"
+                                className="pointer-events-auto p-3 rounded-full bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 transition-all duration-300"
                                 title="Pular Música"
                             >
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
@@ -232,7 +239,7 @@ export default function PlayerPage() {
 
                             <button
                                 onClick={() => setMuted(!muted)}
-                                className={`pointer-events-auto p-3 rounded-full backdrop-blur-md border transition-all duration-300 ${muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-neon-green/20 border-neon-green text-neon-green'}`}
+                                className={`pointer-events-auto p-3 rounded-full border transition-all duration-300 ${muted ? 'bg-red-900/80 border-red-500 text-red-500' : 'bg-zinc-800 border-zinc-700 text-neon-green'}`}
                             >
                                 {muted ? <VolumeX /> : <Volume2 />}
                             </button>
@@ -241,13 +248,13 @@ export default function PlayerPage() {
                     </div>
 
                     {/* FOOTER / INFO BAR */}
-                    <div className="h-32 bg-[#0f0f0f] border-t border-white/10 flex items-center px-8 justify-between z-20 relative shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+                    <div className="h-32 bg-zinc-950 border-t border-zinc-800 flex items-center px-8 justify-between z-20 relative">
                         {/* Current Song Info */}
                         <div className="flex items-center gap-6">
                             {(nowPlaying.thumbnail_url) && (
                                 <SafeImage
                                     src={nowPlaying.thumbnail_url}
-                                    className="w-20 h-20 object-cover rounded-lg shadow-lg shadow-neon-purple/20 ring-1 ring-white/10"
+                                    className="w-20 h-20 object-cover rounded-lg"
                                     alt="Album Art"
                                 />
                             )}
@@ -281,15 +288,13 @@ export default function PlayerPage() {
             ) : (
                 /* IDLE STATE (Empty Queue) */
                 <div className="flex-1 flex flex-col items-center justify-center bg-black p-4 relative overflow-hidden">
-                    {/* Background Effects */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-neon-purple/20 rounded-full blur-[120px] animate-pulse"></div>
-                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+                    {/* Background Effects REMOVED for Lite Mode */}
 
-                    <div className="z-10 text-center space-y-8 p-12 bg-black/40 backdrop-blur-xl rounded-3xl border border-white/10 max-w-3xl w-full shadow-2xl">
-                        <Music className="w-24 h-24 mx-auto text-neon-purple animate-bounce" />
+                    <div className="z-10 text-center space-y-8 p-12 bg-zinc-900 rounded-3xl border border-zinc-800 max-w-3xl w-full">
+                        <Music className="w-24 h-24 mx-auto text-neon-purple" />
 
                         <div className="space-y-4">
-                            <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-neon-green via-white to-neon-purple drop-shadow-sm">
+                            <h1 className="text-6xl font-black text-white drop-shadow-sm">
                                 Jukebox Party
                             </h1>
                             <p className="text-2xl text-gray-400 font-light">
@@ -297,7 +302,7 @@ export default function PlayerPage() {
                             </p>
                         </div>
 
-                        <div className="bg-white p-6 rounded-2xl inline-block shadow-[0_0_40px_-10px_rgba(0,255,65,0.4)] transform hover:scale-105 transition duration-500">
+                        <div className="bg-white p-6 rounded-2xl inline-block shadow-xl">
                             <SafeImage src={qrCodeUrl} alt="QR Code" className="w-72 h-72 mix-blend-multiply" />
                             <p className="mt-4 text-black font-mono font-bold tracking-[0.2em] text-sm">
                                 {requestUrl.replace(/^https?:\/\//, '')}
