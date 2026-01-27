@@ -177,8 +177,35 @@ export default function PlayerPage() {
 
     // ... (existing mute effect) ...
 
+    // START PARTY OVERLAY STATE
+    const [hasInteracted, setHasInteracted] = useState(false);
+
+    // ... (existing effects)
+
+    const handleInteraction = () => {
+        setHasInteracted(true);
+        if (playerRef.current?.playVideo) {
+            playerRef.current.playVideo();
+        }
+    };
+
     return (
         <div className="relative h-screen w-screen bg-black overflow-hidden flex flex-col font-sans text-white selection:bg-neon-green selection:text-black">
+
+            {/* INTERACTION OVERLAY (Browser Autoplay Policy) */}
+            {!hasInteracted && nowPlaying && (
+                <div
+                    onClick={handleInteraction}
+                    className="absolute inset-0 z-[100] bg-black/80 flex items-center justify-center cursor-pointer hover:bg-black/70 transition-colors"
+                >
+                    <div className="text-center animate-bounce">
+                        <Music className="w-20 h-20 text-neon-green mx-auto mb-4" />
+                        <h2 className="text-3xl font-bold text-white">CLIQUE PARA INICIAR A FESTA</h2>
+                        <p className="text-gray-400 mt-2">Necessário para liberar o som automático</p>
+                    </div>
+                </div>
+            )}
+
             {nowPlaying ? (
                 <>
                     {/* VIDEO AREA */}
