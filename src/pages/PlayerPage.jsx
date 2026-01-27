@@ -161,6 +161,22 @@ export default function PlayerPage() {
         },
     };
 
+    // Force Play when video changes (Autoplay Persistence)
+    useEffect(() => {
+        if (ready && playerRef.current && nowPlaying?.video_id) {
+            console.log("New video detected. Forcing play...");
+            // Small functionality delay to ensure internal state is ready
+            setTimeout(() => {
+                if (playerRef.current.playVideo) {
+                    playerRef.current.playVideo();
+                    playerRef.current.setPlaybackQuality?.('small');
+                }
+            }, 100);
+        }
+    }, [nowPlaying?.video_id, ready]);
+
+    // ... (existing mute effect) ...
+
     return (
         <div className="relative h-screen w-screen bg-black overflow-hidden flex flex-col font-sans text-white selection:bg-neon-green selection:text-black">
             {nowPlaying ? (
@@ -176,7 +192,7 @@ export default function PlayerPage() {
                             <div className="w-full h-full pointer-events-auto">
                                 <PlayerErrorBoundary>
                                     <YouTube
-                                        key={nowPlaying.video_id}
+                                        // key removed to prevent remounting/iframe reload
                                         videoId={nowPlaying.video_id}
                                         opts={opts}
                                         onReady={onPlayerReady}
