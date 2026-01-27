@@ -24,119 +24,23 @@ export function useQueue(options = { manager: false }) {
     };
 
     const establishmentRef = useRef(establishment?.id);
+    const lastSkipTime = useRef(0); // Debounce ref
 
     useEffect(() => {
         establishmentRef.current = establishment?.id;
     }, [establishment]);
 
-    // Fetch initial queue
-    const fetchQueue = useCallback(async () => {
-        const currentEstId = establishmentRef.current;
-        console.log(`[useQueue] fetchQueue called. Establishment: ${establishment?.id}, Ref: ${currentEstId}`);
-
-        if (!establishment || !currentEstId) {
-            console.log('[useQueue] Missing establishment or ref, aborting.');
-            return;
-        }
-
-        setLoading(true);
-        // Get everything that is waiting OR playing
-        const { data, error } = await supabase
-            .from('queue')
-            .select('*')
-            .eq('establishment_id', establishment.id) // Filter by Establishment!
-            .in('status', ['waiting', 'playing'])
-            .order('created_at', { ascending: true });
-
-        // STALE CHECK: If establishment changed while fetching, abort
-        if (establishment.id !== establishmentRef.current) {
-            console.warn(`[useQueue] Stale fetch detected. FetchID: ${establishment.id}, RefID: ${establishmentRef.current}`);
-            return;
-        }
-
-        if (error) {
-            console.error('[useQueue] Error fetching queue:', error);
-        } else {
-            console.log(`[useQueue] Data fetched: ${data?.length} items.`);
-            const playing = data.find(item => item.status === 'playing');
-            const waiting = data.filter(item => item.status === 'waiting');
-
-            // SELF-HEALING: If playing but no started_at, fix it
-            if (playing && !playing.started_at) {
-                console.log('Fixing missing started_at timestamp...');
-                const now = new Date().toISOString();
-                // Optimistic update
-                playing.started_at = now;
-                // DB update
-                supabase.from('queue').update({ started_at: now }).eq('id', playing.id).then();
-            }
-
-            setNowPlaying(playing || null);
-            setQueue(waiting || []);
-        }
-        setLoading(false);
-    }, [establishment]);
-
-    useEffect(() => {
-        if (establishment) {
-            console.log(`[useQueue] Establishment changed/mounted: ${establishment.id}`);
-            fetchQueue();
-        } else {
-            console.log('[useQueue] No establishment in effect.');
-            setQueue([]); // Clear if no establishment
-            setNowPlaying(null);
-            setLoading(false);
-        }
-
-        // ADMIN/VIP ACTIVATION VIA URL
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('vip') === 'true') {
-            localStorage.setItem('jukebox_vip', 'true');
-            console.log('VIP Mode Activated');
-        }
-
-        if (!establishment) return;
-
-        // Subscribe to realtime changes
-        const channel = supabase
-            .channel(`public:queue:${establishment.id}`) // Unique channel per establishment
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'queue',
-                filter: `establishment_id=eq.${establishment.id}` // Filter only this establishment's changes
-            }, (payload) => {
-                // DOUBLE SECURITY: Verify payload ID matches current ref
-                if (payload && payload.new && payload.new.establishment_id) {
-                    if (String(payload.new.establishment_id) !== String(establishmentRef.current)) {
-                        console.warn("Ignored event from wrong establishment", payload.new.establishment_id);
-                        return;
-                    }
-                }
-                console.log('Realtime change received:', payload);
-                fetchQueue();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [establishment, fetchQueue]); // Re-run when establishment changes
-
-
-    const updateStatus = async (id, status, extraFields = {}) => {
-        if (!establishment) return; // Guard clause
-
-        const { error } = await supabase
-            .from('queue')
-            .update({ status, ...extraFields })
-            .eq('id', id)
-            .eq('establishment_id', establishment.id); // Safety check
-
-        if (error) console.error('Error updating status:', error);
-    };
+    // ... (rest of code)
 
     const playNext = async (reason = 'unknown') => {
+        const now = Date.now();
+        // DEBOUNCE: Prevent double skips (2 second cooldown)
+        if (now - lastSkipTime.current < 2000) {
+            console.warn(`[useQueue] playNext ignored (Debounce active). Reason: ${reason}`);
+            return;
+        }
+        lastSkipTime.current = now;
+
         console.log(`[useQueue] playNext called. Reason: ${reason}`);
         if (!establishment) return;
 
