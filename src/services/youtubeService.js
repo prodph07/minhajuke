@@ -42,7 +42,7 @@ export const searchVideos = async (query) => {
             video_id: item.id.videoId,
             title: item.snippet.title,
             channel_title: item.snippet.channelTitle,
-            thumbnail_url: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+            thumbnail_url: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
         }));
     } catch (error) {
         console.error('Search error:', error);
@@ -66,7 +66,7 @@ export const getVideoDetails = async (videoId) => {
             video_id: item.id,
             title: item.snippet.title,
             channel_title: item.snippet.channelTitle,
-            thumbnail_url: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+            thumbnail_url: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
             duration_sec: parseDuration(item.contentDetails.duration)
         };
     } catch (error) {

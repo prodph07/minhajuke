@@ -53,6 +53,17 @@ export default function PlayerPage() {
     const { nowPlaying, queue, playNext } = useQueue({ manager: true });
     const { establishment } = useEstablishment() || {}; // Safe usage if global player
 
+    // OPTIMIZATION: Disable logs on TV Player to save memory
+    useEffect(() => {
+        if (process.env.NODE_ENV === 'production') {
+            const noop = () => { };
+            console.log = noop;
+            console.warn = noop;
+            console.error = noop;
+            console.info = noop;
+        }
+    }, []);
+
     // Player State
     const [ready, setReady] = useState(false);
     const [muted, setMuted] = useState(false); // Try to start unmuted
