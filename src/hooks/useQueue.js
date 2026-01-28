@@ -160,8 +160,39 @@ export function useQueue(options = { manager: false }) {
             // Update status AND set started_at to NOW
             await updateStatus(next.id, 'playing', { started_at: new Date().toISOString() });
         } else {
-            // No more songs
-            setNowPlaying(null);
+            // CHECK BACKGROUND PLAYLIST
+            console.log('[useQueue] Queue empty. Checking background playlist...');
+
+            const { data: bgPlaylist } = await supabase
+                .from('background_playlists')
+                .select('*')
+                .eq('establishment_id', establishment.id);
+
+            if (bgPlaylist && bgPlaylist.length > 0) {
+                // Pick random song
+                const randomSong = bgPlaylist[Math.floor(Math.random() * bgPlaylist.length)];
+                console.log('Playing background song:', randomSong.title);
+
+                // Insert into Queue as 'playing' immediately
+                // We use is_background flag if we want to track it later (requires schema update for that column if strict)
+                // For now just insert normally
+                const { error } = await supabase.from('queue').insert([{
+                    establishment_id: establishment.id,
+                    video_id: randomSong.video_id,
+                    title: randomSong.title,
+                    channel_title: randomSong.channel_title,
+                    thumbnail_url: randomSong.thumbnail_url,
+                    status: 'playing',
+                    user_id: 'system_background',
+                    duration_sec: randomSong.duration_sec || 180,
+                    started_at: new Date().toISOString()
+                }]);
+
+                if (error) console.error('Error starting background song:', error);
+            } else {
+                console.log('No background songs found.');
+                setNowPlaying(null);
+            }
         }
 
         // Refresh immediately to update UI
@@ -185,7 +216,7 @@ export function useQueue(options = { manager: false }) {
                     console.log('Heartbeat: Song expired (over 30s past duration), playing next...');
                     playNext('heartbeat_expired');
                 }
-            } else if (!nowPlaying && queue.length > 0) {
+            } else if (!nowPlaying) {
                 // Auto-start if nothing is playing
                 console.log('Heartbeat: Queue has items but nothing playing. Starting...');
                 playNext('heartbeat_autostart');
@@ -240,7 +271,9 @@ export function useQueue(options = { manager: false }) {
         }
     };
 
-    const addToQueue = async (video) => {
+    const addToQueue = async (video, options = {}) => {
+        const { skipRestrictions = false } = options;
+
         if (!establishment) {
             console.error("Cannot add to queue: No establishment context");
             return;
@@ -248,22 +281,43 @@ export function useQueue(options = { manager: false }) {
 
         const userId = getUserId();
 
-        // 1. Static Checks (Blacklist)
-        checkRules(video);
+        // 1. Check Global Switch (Requests Enabled)
+        const settings = establishment.settings || {};
+        if (!skipRestrictions && settings.requests_enabled === false) {
+            throw new Error('Os pedidos estão fechados no momento.');
+        }
 
-        // 2. Rate Limits
-        await checkRateLimit(userId);
+        // 2. Static Checks (Blacklist) - Skipped if Admin
+        if (!skipRestrictions) {
+            checkRules(video);
+
+            // DUPLICATE CHECK
+            const isPlaying = nowPlaying && nowPlaying.video_id === video.video_id;
+            const isQueued = queue.some(item => item.video_id === video.video_id);
+
+            if (isPlaying || isQueued) {
+                throw new Error('Essa música já está na fila ou tocando no momento!');
+            }
+        }
+
+        // 2. Rate Limits - Skipped if Admin
+        if (!skipRestrictions) {
+            await checkRateLimit(userId);
+        }
 
         // 3. Fetch Duration from YouTube API
+        // Always needed for the DB, but check limit only if not admin
         const details = await getVideoDetails(video.video_id);
         const duration = details ? details.duration_sec : 180;
 
         // 4. Dynamic Checks (Duration)
-        const settings = establishment.settings || {};
-        const maxDuration = settings.max_duration_seconds || 600;
+        if (!skipRestrictions) {
+            const settings = establishment.settings || {};
+            const maxDuration = settings.max_duration_seconds || 600;
 
-        if (duration > maxDuration) {
-            throw new Error(`Música muito longa! O limite é de ${(maxDuration / 60).toFixed(0)} minutos.`);
+            if (duration > maxDuration) {
+                throw new Error(`Música muito longa! O limite é de ${(maxDuration / 60).toFixed(0)} minutos.`);
+            }
         }
 
         // 5. Insert with user_id & duration
@@ -303,6 +357,7 @@ export function useQueue(options = { manager: false }) {
         playNext,
         updateStatus,
         removeSong,
-        establishment
+        establishment,
+        userId: getUserId()
     };
 }

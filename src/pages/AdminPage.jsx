@@ -2,20 +2,22 @@ import React, { useState } from 'react';
 import { useQueue } from '../hooks/useQueue';
 import { useEstablishment } from '../contexts/EstablishmentContext';
 import { useAdminStats } from '../hooks/useAdminStats';
-import { Trash2, SkipForward, Play, LayoutDashboard, ListMusic, Users, Clock, Music, Settings } from 'lucide-react';
+import { Trash2, SkipForward, Play, LayoutDashboard, ListMusic, Users, Clock, Music, Settings, Plus } from 'lucide-react';
 
 // Dashboard Components
 import { StatsCard } from '../components/Dashboard/StatsCard';
 import RequestsChart from '../components/Dashboard/RequestsChart';
 import PopularSongsList from '../components/Dashboard/PopularSongsList';
 import SettingsTab from '../components/Dashboard/SettingsTab';
+import AdminRequestTab from '../components/Admin/AdminRequestTab';
+import AdminPlaylistTab from '../components/Admin/AdminPlaylistTab';
 
 export default function AdminPage() {
     const { queue, nowPlaying, removeSong, playNext, updateStatus } = useQueue();
     const { establishment, loading } = useEstablishment();
     const { stats, loading: statsLoading } = useAdminStats();
 
-    // Tabs state: 'queue' | 'dashboard'
+    // Tabs state: 'queue' | 'dashboard' | 'settings' | 'request' | 'playlist'
     const [activeTab, setActiveTab] = useState('queue');
 
     // QR Logic
@@ -44,14 +46,30 @@ export default function AdminPage() {
                 </div>
 
                 {/* TABS NAVIGATION */}
-                <div className="flex bg-white/5 p-1 rounded-lg self-start">
+                <div className="flex bg-white/5 p-1 rounded-lg self-start flex-wrap">
                     <button
                         onClick={() => setActiveTab('queue')}
                         className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'queue' ? 'bg-neon-purple text-white shadow-lg' : 'text-gray-400 hover:text-white'
                             }`}
                     >
                         <ListMusic className="w-4 h-4" />
-                        Fila de Músicas
+                        Fila
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('request')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'request' ? 'bg-neon-purple text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        <Plus className="w-4 h-4" />
+                        Pedir Música
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('playlist')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'playlist' ? 'bg-neon-purple text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        <ListMusic className="w-4 h-4" />
+                        Playlist Fundo
                     </button>
                     <button
                         onClick={() => setActiveTab('dashboard')}
@@ -163,6 +181,12 @@ export default function AdminPage() {
                             </div>
                         </section>
                     </div>
+                ) : activeTab === 'request' ? (
+                    /* === REQUEST TAB (ADMIN) === */
+                    <AdminRequestTab />
+                ) : activeTab === 'playlist' ? (
+                    /* === PLAYLIST BACKGROUND TAB === */
+                    <AdminPlaylistTab />
                 ) : activeTab === 'settings' ? (
                     /* === SETTINGS TAB === */
                     <SettingsTab establishment={establishment} />

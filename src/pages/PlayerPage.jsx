@@ -265,7 +265,7 @@ export default function PlayerPage() {
                 <>
                     {/* VIDEO AREA */}
                     <div
-                        className="flex-1 relative bg-black flex items-center justify-center overflow-hidden"
+                        className="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden"
                         onMouseEnter={() => setShowControls(true)}
                         onMouseLeave={() => setShowControls(false)}
                     >
@@ -282,7 +282,12 @@ export default function PlayerPage() {
                                         opts={opts}
                                         onReady={onPlayerReady}
                                         onStateChange={onPlayerStateChange}
-                                        onError={(e) => console.error('YouTube Error:', e)}
+                                        onError={(e) => {
+                                            console.error('YouTube Error:', e);
+                                            // Auto-skip if video is unavailable/restricted
+                                            // Error 100, 101, 150 mean unavailable/restricted
+                                            playNext('player_error');
+                                        }}
                                         className="w-full h-full"
                                         iframeClassName="w-full h-full object-cover"
                                     />
@@ -349,7 +354,7 @@ export default function PlayerPage() {
                     </div>
 
                     {/* FOOTER / INFO BAR */}
-                    <div className={`h-32 bg-zinc-950 border-t border-zinc-800 flex items-center px-8 justify-between z-20 relative transition-all duration-1000 ${hideUI ? 'opacity-0 translate-y-32' : 'opacity-100 translate-y-0'}`}>
+                    <div className={`absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black via-black/80 to-transparent flex items-end px-8 pb-8 justify-between z-20 transition-all duration-1000 ${hideUI ? 'opacity-0 translate-y-32' : 'opacity-100 translate-y-0'}`}>
                         {/* Current Song Info */}
                         <div className="flex items-center gap-6">
                             {(nowPlaying.thumbnail_url) && (

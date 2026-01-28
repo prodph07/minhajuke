@@ -140,6 +140,31 @@ export default function SettingsTab({ establishment }) {
                         Moderação
                     </h3>
                     <div className="space-y-6">
+
+                        {/* FEATURE: REQUESTS TOGGLE */}
+                        <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
+                            <div>
+                                <span className={`block font-bold ${settings.requests_enabled !== false ? 'text-neon-green' : 'text-red-500'}`}>
+                                    {settings.requests_enabled !== false ? 'Pedidos Abertos' : 'Pedidos Fechados'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                    {settings.requests_enabled !== false
+                                        ? 'Clientes podem pedir músicas livremente.'
+                                        : 'Apenas Administradores podem adicionar músicas.'}
+                                </span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="requests_enabled"
+                                    checked={settings.requests_enabled !== false}
+                                    onChange={handleChange}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
+                            </label>
+                        </div>
+
                         <div className="space-y-2">
                             <label className="text-sm text-gray-400">Palavras Proibidas (Blacklist)</label>
                             <textarea

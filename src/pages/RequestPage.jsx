@@ -13,7 +13,7 @@ export default function RequestPage() {
     const [resolvingId, setResolvingId] = useState(null); // Track which item is being resolved
     const [error, setError] = useState(null);
 
-    const { addToQueue, queue, establishment } = useQueue();
+    const { addToQueue, queue, establishment, userId } = useQueue();
 
     // AUTO-SEARCH (DEBOUNCE)
     useEffect(() => {
@@ -145,18 +145,30 @@ export default function RequestPage() {
             {/* Search Section */}
             <section className="space-y-4">
                 <h2 className="text-2xl font-bold mb-4">{establishment?.settings?.welcome_message || 'Pedir Música'}</h2>
-                <form onSubmit={handleSearch} className="flex gap-2">
-                    <input
-                        type="text"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Digite o nome da música..."
-                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-neon-purple transition-colors text-lg"
-                    />
-                    <div className="bg-neon-purple/20 text-neon-purple p-3 rounded-lg flex items-center justify-center min-w-[3rem]">
-                        {searching ? <Loader2 className="animate-spin" /> : <Search />}
+
+                {/* CHECK IF REQUESTS ARE OPEN */}
+                {establishment?.settings?.requests_enabled === false ? (
+                    <div className="bg-red-500/10 border border-red-500/50 p-6 rounded-xl text-center space-y-2 animate-in fade-in zoom-in-95">
+                        <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-2 text-red-500">
+                            <span className="text-2xl">🔒</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-red-400">Pedidos Encerrados</h3>
+                        <p className="text-gray-400">O estabelecimento fechou os pedidos por enquanto.</p>
                     </div>
-                </form>
+                ) : (
+                    <form onSubmit={handleSearch} className="flex gap-2">
+                        <input
+                            type="text"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Digite o nome da música..."
+                            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-neon-purple transition-colors text-lg"
+                        />
+                        <div className="bg-neon-purple/20 text-neon-purple p-3 rounded-lg flex items-center justify-center min-w-[3rem]">
+                            {searching ? <Loader2 className="animate-spin" /> : <Search />}
+                        </div>
+                    </form>
+                )}
 
                 {/* Error Message Alert */}
                 {error && (
@@ -238,16 +250,40 @@ export default function RequestPage() {
                     {queue.length === 0 ? (
                         <p className="text-gray-500 text-center py-4 italic">A fila está vazia. Seja o primeiro!</p>
                     ) : (
-                        queue.map((item, index) => (
-                            <div key={item.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-transparent">
-                                <span className="text-gray-500 font-mono text-sm w-6 text-center">{index + 1}</span>
-                                <img src={item.thumbnail_url} alt={item.title} className="w-12 h-9 object-cover rounded opacity-70" />
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-medium text-white">{item.title}</p>
-                                    <p className="text-xs text-gray-400 truncate">{item.channel_title}</p>
+                        queue.map((item, index) => {
+                            const isMine = item.user_id === userId;
+                            return (
+                                <div
+                                    key={item.id}
+                                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${isMine
+                                        ? 'bg-neon-purple/10 border-neon-purple shadow-[0_0_15px_rgba(180,0,255,0.1)]'
+                                        : 'bg-white/5 border-transparent'
+                                        }`}
+                                >
+                                    <div className="flex flex-col items-center min-w-[1.5rem]">
+                                        <span className={`font-mono text-sm ${isMine ? 'text-neon-purple font-bold' : 'text-gray-500'}`}>
+                                            {index + 1}
+                                        </span>
+                                    </div>
+
+                                    <div className="relative">
+                                        <img src={item.thumbnail_url} alt={item.title} className="w-12 h-9 object-cover rounded opacity-90" />
+                                        {isMine && (
+                                            <div className="absolute -top-2 -right-2 bg-neon-purple text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                                                VOCÊ
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="min-w-0 flex-1">
+                                        <p className={`truncate text-sm font-medium ${isMine ? 'text-white' : 'text-gray-300'}`}>
+                                            {item.title}
+                                        </p>
+                                        <p className="text-xs text-gray-500 truncate">{item.channel_title}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </section>
