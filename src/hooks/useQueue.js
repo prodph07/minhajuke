@@ -166,29 +166,78 @@ export function useQueue(options = { manager: false }) {
             const { data: bgPlaylist } = await supabase
                 .from('background_playlists')
                 .select('*')
-                .eq('establishment_id', establishment.id);
+                .eq('establishment_id', establishment.id)
+                .order('created_at', { ascending: true }); // Ensure deterministic order for Sequential
 
             if (bgPlaylist && bgPlaylist.length > 0) {
-                // Pick random song
-                const randomSong = bgPlaylist[Math.floor(Math.random() * bgPlaylist.length)];
-                console.log('Playing background song:', randomSong.title);
+                const settings = establishment.settings || {};
+                const mode = settings.background_playlist_mode || 'shuffle'; // Default to shuffle
 
-                // Insert into Queue as 'playing' immediately
-                // We use is_background flag if we want to track it later (requires schema update for that column if strict)
-                // For now just insert normally
-                const { error } = await supabase.from('queue').insert([{
-                    establishment_id: establishment.id,
-                    video_id: randomSong.video_id,
-                    title: randomSong.title,
-                    channel_title: randomSong.channel_title,
-                    thumbnail_url: randomSong.thumbnail_url,
-                    status: 'playing',
-                    user_id: 'system_background',
-                    duration_sec: randomSong.duration_sec || 180,
-                    started_at: new Date().toISOString()
-                }]);
+                let nextSong = null;
 
-                if (error) console.error('Error starting background song:', error);
+                if (mode === 'sequential') {
+                    // --- SEQUENTIAL MODE ---
+                    const lastPlayedId = localStorage.getItem(`bg_last_seq_${establishment.id}`);
+                    let nextIndex = 0;
+
+                    if (lastPlayedId) {
+                        const lastIndex = bgPlaylist.findIndex(s => s.id === lastPlayedId);
+                        if (lastIndex !== -1 && lastIndex < bgPlaylist.length - 1) {
+                            nextIndex = lastIndex + 1;
+                        } else {
+                            nextIndex = 0; // Loop back to start
+                        }
+                    }
+                    nextSong = bgPlaylist[nextIndex];
+
+                    // Save for next time
+                    localStorage.setItem(`bg_last_seq_${establishment.id}`, nextSong.id);
+                    console.log(`[Background] Sequential Mode. Playing index ${nextIndex}: ${nextSong.title}`);
+
+                } else {
+                    // --- SHUFFLE MODE (NO REPEAT) ---
+                    // Get played history
+                    let playedIds = [];
+                    try {
+                        playedIds = JSON.parse(localStorage.getItem(`bg_shuffle_history_${establishment.id}`)) || [];
+                    } catch (e) { }
+
+                    // Filter candidates
+                    let candidates = bgPlaylist.filter(s => !playedIds.includes(s.id));
+
+                    // If all played (or empty), reset history
+                    if (candidates.length === 0) {
+                        console.log('[Background] All songs played. Resetting shuffle history.');
+                        candidates = bgPlaylist;
+                        playedIds = [];
+                    }
+
+                    // Pick random
+                    const randomIndex = Math.floor(Math.random() * candidates.length);
+                    nextSong = candidates[randomIndex];
+
+                    // Update history
+                    playedIds.push(nextSong.id);
+                    localStorage.setItem(`bg_shuffle_history_${establishment.id}`, JSON.stringify(playedIds));
+                    console.log(`[Background] Shuffle Mode. Pool: ${candidates.length}/${bgPlaylist.length}. Playing: ${nextSong.title}`);
+                }
+
+                if (nextSong) {
+                    // Insert into Queue as 'playing' immediately
+                    const { error } = await supabase.from('queue').insert([{
+                        establishment_id: establishment.id,
+                        video_id: nextSong.video_id,
+                        title: nextSong.title,
+                        channel_title: nextSong.channel_title,
+                        thumbnail_url: nextSong.thumbnail_url,
+                        status: 'playing',
+                        user_id: 'system_background',
+                        duration_sec: nextSong.duration_sec || 180,
+                        started_at: new Date().toISOString()
+                    }]);
+
+                    if (error) console.error('Error starting background song:', error);
+                }
             } else {
                 console.log('No background songs found.');
                 setNowPlaying(null);

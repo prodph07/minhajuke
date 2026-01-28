@@ -356,24 +356,29 @@ export default function PlayerPage() {
                     {/* FOOTER / INFO BAR */}
                     <div className={`absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black via-black/80 to-transparent flex items-end px-8 pb-8 justify-between z-20 transition-all duration-1000 ${hideUI ? 'opacity-0 translate-y-32' : 'opacity-100 translate-y-0'}`}>
                         {/* Current Song Info */}
-                        <div className="flex items-center gap-6">
-                            {(nowPlaying.thumbnail_url) && (
-                                <SafeImage
-                                    src={nowPlaying.thumbnail_url}
-                                    className="w-20 h-20 object-cover rounded-lg"
-                                    alt="Album Art"
-                                />
-                            )}
-                            <div className="max-w-md">
-                                <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent line-clamp-1">
-                                    {nowPlaying.title}
-                                </h2>
-                                <p className="text-neon-green font-medium flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                                    {nowPlaying.channel_title}
-                                </p>
+                        {settings.player_info_visible !== false && (
+                            <div
+                                className="flex items-center gap-6 origin-bottom-left transition-transform duration-300"
+                                style={{ transform: `scale(${(settings.player_info_scale || 100) / 100})` }}
+                            >
+                                {(nowPlaying.thumbnail_url) && (
+                                    <SafeImage
+                                        src={nowPlaying.thumbnail_url}
+                                        className="w-20 h-20 object-cover rounded-lg"
+                                        alt="Album Art"
+                                    />
+                                )}
+                                <div className="max-w-md">
+                                    <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent line-clamp-1">
+                                        {nowPlaying.title}
+                                    </h2>
+                                    <p className="text-neon-green font-medium flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                                        {nowPlaying.channel_title}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Up Next & Connect QR */}
                         <div className="flex gap-4 items-center">
@@ -385,8 +390,30 @@ export default function PlayerPage() {
                                     <p className="text-gray-600 italic text-sm">Fila Vazia</p>
                                 )}
                             </div>
-                            <div className="bg-white p-2 rounded-lg shadow-lg shadow-neon-green/20">
-                                <SafeImage src={qrCodeUrl} className="w-20 h-20" alt="Join QR" />
+
+                            {/* QR CODE + HELPER TEXT AREA */}
+                            <div className="flex items-center gap-4">
+                                {(settings.qr_helper_text_side === 'left') && (
+                                    <div className="text-right hidden sm:block animate-pulse">
+                                        <p className="text-white font-black text-lg leading-none tracking-tighter">
+                                            PEÇA SUA<br />
+                                            <span className="text-neon-green">MÚSICA</span>
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="bg-white p-2 rounded-lg shadow-lg shadow-neon-green/20 relative group">
+                                    <SafeImage src={qrCodeUrl} className="w-20 h-20" alt="Join QR" />
+                                </div>
+
+                                {(settings.qr_helper_text_side === 'right') && (
+                                    <div className="text-left hidden sm:block animate-pulse">
+                                        <p className="text-white font-black text-lg leading-none tracking-tighter">
+                                            PEÇA SUA<br />
+                                            <span className="text-neon-green">MÚSICA</span>
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

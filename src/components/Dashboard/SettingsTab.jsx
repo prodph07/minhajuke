@@ -19,7 +19,10 @@ export default function SettingsTab({ establishment }) {
         theme_secondary_color: '#00ff41',
         background_image_url: '',
         search_provider: 'youtube',
-        lastfm_api_key: ''
+        lastfm_api_key: '',
+        qr_helper_text_side: 'none',
+        player_info_visible: true,
+        player_info_scale: 100
     };
 
     const [settings, setSettings] = useState({ ...defaultSettings, ...(establishment.settings || {}) });
@@ -327,6 +330,65 @@ export default function SettingsTab({ establishment }) {
                             />
                         </div>
                     </div>
+
+                    <div className="space-y-3 pt-4 border-t border-white/5">
+                        <label className="text-sm text-gray-400 block mb-2">Texto de Ajuda do QR Code ("Peça sua música")</label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {['none', 'left', 'right'].map((option) => (
+                                <label key={option} className={`border border-white/10 rounded-lg p-3 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${settings.qr_helper_text_side === option ? 'bg-white text-black' : 'bg-black/30 hover:bg-white/5'}`}>
+                                    <input
+                                        type="radio"
+                                        name="qr_helper_text_side"
+                                        value={option}
+                                        checked={(settings.qr_helper_text_side || 'none') === option}
+                                        onChange={handleChange}
+                                        className="sr-only"
+                                    />
+                                    <span className="uppercase font-bold text-xs tracking-wider">
+                                        {option === 'none' ? 'Oculto' : option === 'left' ? 'Esquerda' : 'Direita'}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-white/5">
+                        <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
+                            <div>
+                                <span className="block text-white font-bold">Mostrar Informações da Música</span>
+                                <span className="text-xs text-gray-500">Exibir capa, título e artista no rodapé do player.</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="player_info_visible"
+                                    checked={settings.player_info_visible !== false}
+                                    onChange={handleChange}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
+                            </label>
+                        </div>
+
+                        {settings.player_info_visible !== false && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <label className="text-sm text-gray-400 flex items-center justify-between">
+                                    <span>Tamanho das Informações</span>
+                                    <span className="font-mono text-white">{settings.player_info_scale || 100}%</span>
+                                </label>
+                                <input
+                                    type="range"
+                                    name="player_info_scale"
+                                    min="20"
+                                    max="200"
+                                    step="5"
+                                    value={settings.player_info_scale || 100}
+                                    onChange={handleChange}
+                                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-neon-green"
+                                />
+                            </div>
+                        )}
+                    </div>
                 </section>
 
                 {/* 4. INTEGRAÇÕES (BUSCA) */}
@@ -425,6 +487,6 @@ export default function SettingsTab({ establishment }) {
                     </button>
                 </div>
             </form>
-        </div>
+        </div >
     );
 }

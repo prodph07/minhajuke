@@ -92,6 +92,28 @@ export default function AdminPlaylistTab() {
         }
     };
 
+    const updateSettings = async (newSettings) => {
+        if (!establishment) return;
+        const updatedSettings = { ...establishment.settings, ...newSettings };
+
+        // Optimistic Update (requires parent reload to persist visually if coming from props, but let's try direct update if possible, or just API call)
+        // Ideally we should use a context method, but direct DB update works if we rely on realtime or refresh.
+        // For now, let's just update DB and rely on Context reload or valid local state if we had it.
+        // Actually, let's assume EstablishmentContext will pick it up via Realtime or we manually trigger something.
+
+        try {
+            const { error } = await supabase
+                .from('establishments')
+                .update({ settings: updatedSettings })
+                .eq('id', establishment.id);
+
+            if (error) throw error;
+        } catch (err) {
+            console.error('Error updating settings:', err);
+            alert('Erro ao salvar modo.');
+        }
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white/5 p-6 rounded-xl border border-white/10">
@@ -102,6 +124,34 @@ export default function AdminPlaylistTab() {
                 <p className="text-gray-400 text-sm mb-6">
                     Estas músicas tocarão aleatoriamente quando a fila de pedidos estiver vazia.
                 </p>
+
+                {/* PLAYBACK MODE SELECTOR */}
+                <div className="bg-black/30 p-4 rounded-lg border border-white/5 mb-6 flex items-center justify-between">
+                    <div>
+                        <h4 className="font-bold text-white text-sm">Modo de Reprodução</h4>
+                        <p className="text-xs text-gray-500">Como as músicas serão escolhidas.</p>
+                    </div>
+                    <div className="flex bg-black/50 p-1 rounded-lg">
+                        <button
+                            onClick={() => updateSettings({ background_playlist_mode: 'shuffle' })}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${(!establishment.settings?.background_playlist_mode || establishment.settings?.background_playlist_mode === 'shuffle')
+                                ? 'bg-neon-purple text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white'
+                                }`}
+                        >
+                            Aleatório (Sem Repetição)
+                        </button>
+                        <button
+                            onClick={() => updateSettings({ background_playlist_mode: 'sequential' })}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${(establishment.settings?.background_playlist_mode === 'sequential')
+                                ? 'bg-neon-purple text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white'
+                                }`}
+                        >
+                            Sequencial
+                        </button>
+                    </div>
+                </div>
 
                 {/* Search Bar */}
                 <form onSubmit={handleSearch} className="flex gap-2 mb-6">
