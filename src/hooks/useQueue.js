@@ -399,6 +399,10 @@ export function useQueue(options = { manager: false }) {
 
         if (error) {
             console.error('Error adding to queue:', error);
+            // Handle duplicate key error (Postgres 23505) from active_song_constraint
+            if (error.code === '23505') {
+                throw new Error('Esta música já está na fila (proteção do sistema).');
+            }
             throw error;
         }
 

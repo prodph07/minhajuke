@@ -89,6 +89,9 @@ export default function RequestPage() {
                 clearTimeout(closeTimerRef.current);
             }
 
+            // INSTANT LOCK: Disable button immediately
+            setResolvingId(tempId);
+
             let finalVideo = video;
 
             // RESOLVE LOGIC: If item comes from Last.fm, we need to find a YouTube ID
