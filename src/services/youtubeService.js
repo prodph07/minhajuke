@@ -113,3 +113,25 @@ export const getVideoDetails = async (videoId) => {
         return null;
     }
 };
+
+export const getPlaylistItems = async (playlistId) => {
+    try {
+        const response = await fetchWithKeyRotation((key) =>
+            `${BASE_URL}/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&key=${key}`
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch playlist items');
+
+        const data = await response.json();
+
+        return data.items.map((item) => ({
+            video_id: item.snippet.resourceId.videoId,
+            title: item.snippet.title,
+            channel_title: item.snippet.videoOwnerChannelTitle || item.snippet.channelTitle,
+            thumbnail_url: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+        })).filter(v => v.title !== 'Private video' && v.title !== 'Deleted video');
+    } catch (error) {
+        console.error('Get Playlist Items error:', error);
+        throw error;
+    }
+};

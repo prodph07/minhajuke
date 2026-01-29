@@ -337,14 +337,28 @@ export function useQueue(options = { manager: false }) {
         }
 
         // 2. Static Checks (Blacklist) - Skipped if Admin
+        // 2. Static Checks (Blacklist) - Skipped if Admin
         if (!skipRestrictions) {
             checkRules(video);
 
-            // DUPLICATE CHECK
+            // DUPLICATE CHECK (Client Side - Fast Feedback)
             const isPlaying = nowPlaying && nowPlaying.video_id === video.video_id;
             const isQueued = queue.some(item => item.video_id === video.video_id);
 
             if (isPlaying || isQueued) {
+                throw new Error('Essa música já está na fila ou tocando no momento!');
+            }
+
+            // DUPLICATE CHECK (DB Side - Race Condition Proof)
+            const { data: duplicate } = await supabase
+                .from('queue')
+                .select('id')
+                .eq('establishment_id', establishment.id)
+                .eq('video_id', video.video_id)
+                .in('status', ['waiting', 'playing'])
+                .maybeSingle();
+
+            if (duplicate) {
                 throw new Error('Essa música já está na fila ou tocando no momento!');
             }
         }

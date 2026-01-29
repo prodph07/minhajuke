@@ -22,7 +22,8 @@ export default function SettingsTab({ establishment }) {
         lastfm_api_key: '',
         qr_helper_text_side: 'none',
         player_info_visible: true,
-        player_info_scale: 100
+        player_info_scale: 100,
+        search_close_delay: 5
     };
 
     const [settings, setSettings] = useState({ ...defaultSettings, ...(establishment.settings || {}) });
@@ -58,7 +59,8 @@ export default function SettingsTab({ establishment }) {
                 max_requests_per_user: parseInt(settings.max_requests_per_user),
                 limit_window_minutes: parseInt(settings.limit_window_minutes),
                 max_duration_seconds: parseInt(settings.max_duration_seconds),
-                force_reload_interval: parseInt(settings.force_reload_interval || 0)
+                force_reload_interval: parseInt(settings.force_reload_interval || 0),
+                search_close_delay: parseInt(settings.search_close_delay || 5)
             };
 
             const { error } = await supabase
@@ -440,6 +442,21 @@ export default function SettingsTab({ establishment }) {
                                     <span className="text-xs text-center text-gray-400">Zero Cota. Requer Edge Function.</span>
                                 </label>
                             </div>
+                        </div>
+
+                        <div className="space-y-2 pt-4 border-t border-white/5">
+                            <label className="text-sm text-gray-400">Tempo para manter a busca aberta (segundos)</label>
+                            <input
+                                type="number"
+                                name="search_close_delay"
+                                value={settings.search_close_delay !== undefined ? settings.search_close_delay : 5}
+                                onChange={handleChange}
+                                className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-purple outline-none transition-colors"
+                            />
+                            <p className="text-xs text-gray-500">
+                                Após adicionar uma música, a lista ficará aberta por X segundos antes de fechar.
+                                Se escolher outra música, o tempo reinicia.
+                            </p>
                         </div>
 
                         {settings.search_provider === 'lastfm' && (

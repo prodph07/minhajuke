@@ -76,11 +76,19 @@ export default function RequestPage() {
         // Logic handled by useEffect, form submit just prevents refresh
     };
 
+    // Timer ref to handle closing the list
+    const closeTimerRef = React.useRef(null);
+
     const handleAdd = async (video) => {
         // Use title as tempororary ID for Last.fm items if video_id is missing
         const tempId = video.video_id || video.title;
 
         try {
+            // Clear any existing timer so we don't close prematurely if the user clicks again
+            if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+            }
+
             let finalVideo = video;
 
             // RESOLVE LOGIC: If item comes from Last.fm, we need to find a YouTube ID
@@ -133,7 +141,16 @@ export default function RequestPage() {
             setResolvingId(null);
             setJustAdded(tempId); // Use consistent ID for UI feedback
             setTimeout(() => setJustAdded(null), 2000);
-            setQuery('');
+
+            // Set timer to close search results
+            const delaySeconds = parseInt(establishment?.settings?.search_close_delay || 5);
+            console.log(`[Search] Timeout set for ${delaySeconds}s (Value from settings: ${establishment?.settings?.search_close_delay})`);
+
+            closeTimerRef.current = setTimeout(() => {
+                console.log("[Search] Timeout reached. Clearing query.");
+                setQuery('');
+            }, delaySeconds * 1000);
+
         } catch (error) {
             setResolvingId(null);
             alert('Erro ao adicionar música: ' + error.message);

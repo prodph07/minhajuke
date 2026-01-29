@@ -10,7 +10,8 @@ export default function AdminRequestTab() {
     const [justAdded, setJustAdded] = useState(null);
     const [error, setError] = useState(null);
 
-    const { addToQueue } = useQueue();
+    const { addToQueue, establishment } = useQueue();
+    const closeTimerRef = React.useRef(null);
 
     // AUTO-SEARCH (DEBOUNCE)
     useEffect(() => {
@@ -44,12 +45,23 @@ export default function AdminRequestTab() {
 
     const handleAdd = async (video) => {
         try {
+            // Clear any existing timer
+            if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+            }
+
             // CALL WITH skipRestrictions: true
             await addToQueue(video, { skipRestrictions: true });
 
             setJustAdded(video.video_id);
             setTimeout(() => setJustAdded(null), 2000);
-            setQuery(''); // Clear search on success? Or keep it? Usually clearing is better for "remote control" feel
+
+            // Set timer to close search results (Configurable)
+            const delaySeconds = establishment?.settings?.search_close_delay || 5;
+            closeTimerRef.current = setTimeout(() => {
+                setQuery('');
+            }, delaySeconds * 1000);
+
         } catch (error) {
             alert('Erro ao adicionar música: ' + error.message);
         }
@@ -83,11 +95,12 @@ export default function AdminRequestTab() {
 
                 {/* Results */}
                 <div className="space-y-3">
-                    {results.map((video) => {
+                    {results.map((video, index) => {
                         const isAdded = justAdded === video.video_id;
 
                         return (
-                            <div key={video.video_id} className="bg-white/5 p-3 rounded-xl flex items-center gap-4 hover:bg-white/10 transition-colors">
+
+                            <div key={`${video.video_id}-${index}`} className="bg-white/5 p-3 rounded-xl flex items-center gap-4 hover:bg-white/10 transition-colors">
                                 <img src={video.thumbnail_url} alt={video.title} className="w-20 h-14 object-cover rounded shadow-md" />
 
                                 <div className="flex-1 min-w-0">

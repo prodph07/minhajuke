@@ -9,25 +9,69 @@ export default function AdminPlaylistTab() {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
-    const [playlist, setPlaylist] = useState([]);
+
+    // Playlists State
+    const [playlists, setPlaylists] = useState([]);
+    const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
+    const [playlistItems, setPlaylistItems] = useState([]);
     const [loadingList, setLoadingList] = useState(true);
 
-    const fetchPlaylist = async () => {
+    // Create State
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [newPlaylistName, setNewPlaylistName] = useState('');
+
+    // Initial Fetch: Get Playlists
+    useEffect(() => {
         if (!establishment) return;
+        fetchPlaylists();
+    }, [establishment]);
+
+    // Fetch Playlists List
+    const fetchPlaylists = async () => {
         const { data, error } = await supabase
+            .from('playlists')
+            .select('*')
+            .eq('establishment_id', establishment.id)
+            .order('created_at', { ascending: true });
+
+        if (!error) {
+            setPlaylists(data || []);
+            // Select first playlist or active one if available, else null (General)
+            // Ideally we need a "General" or active logic. Let's default to the active one or first.
+            const active = data?.find(p => p.is_active);
+            if (active) setSelectedPlaylistId(active.id);
+            else if (data && data.length > 0) setSelectedPlaylistId(data[0].id);
+        }
+    };
+
+    // Fetch Items when Playlist Changes
+    useEffect(() => {
+        fetchPlaylistItems();
+    }, [establishment, selectedPlaylistId]);
+
+    const fetchPlaylistItems = async () => {
+        if (!establishment) return;
+        setLoadingList(true);
+
+        let query = supabase
             .from('background_playlists')
             .select('*')
             .eq('establishment_id', establishment.id)
             .order('created_at', { ascending: false });
 
-        if (error) console.error('Error fetching playlist:', error);
-        else setPlaylist(data || []);
+        if (selectedPlaylistId) {
+            query = query.eq('playlist_id', selectedPlaylistId);
+        } else {
+            // General (NULL playlist_id)
+            query = query.is('playlist_id', null);
+        }
+
+        const { data, error } = await query;
+
+        if (error) console.error('Error fetching playlist items:', error);
+        else setPlaylistItems(data || []);
         setLoadingList(false);
     };
-
-    useEffect(() => {
-        fetchPlaylist();
-    }, [establishment]);
 
     // AUTO-SEARCH (DEBOUNCE)
     useEffect(() => {
@@ -60,17 +104,19 @@ export default function AdminPlaylistTab() {
                 .from('background_playlists')
                 .insert([{
                     establishment_id: establishment.id,
+                    playlist_id: selectedPlaylistId, // Link to current playlist
                     video_id: video.video_id,
                     title: video.title,
                     channel_title: video.channel_title,
                     thumbnail_url: video.thumbnail_url,
-                    duration_sec: 180 // Default, ideally fetch details but keeping simple for now
+                    duration_sec: video.duration_sec || 180
                 }]);
 
             if (error) throw error;
 
             // Optimistic update or refresh
-            fetchPlaylist();
+            // Optimistic update or refresh
+            fetchPlaylistItems();
             setQuery('');
             setResults([]);
         } catch (error) {
@@ -79,16 +125,28 @@ export default function AdminPlaylistTab() {
     };
 
     const handleRemove = async (id) => {
+        if (!id) {
+            console.error("Erro: Tentativa de remover item sem ID.");
+            return;
+        }
+
         try {
+            console.log("Tentando remover item da playlist:", id);
             const { error } = await supabase
                 .from('background_playlists')
                 .delete()
                 .eq('id', id);
 
-            if (error) throw error;
-            fetchPlaylist();
+            if (error) {
+                console.error("Erro Supabase ao deletar:", error);
+                throw error;
+            }
+
+            console.log("Item removido com sucesso.");
+            fetchPlaylistItems();
         } catch (error) {
-            alert('Erro ao remover: ' + error.message);
+            console.error("Erro no handleRemove:", error);
+            alert('Erro ao remover: ' + (error.message || 'Erro desconhecido'));
         }
     };
 
@@ -114,16 +172,119 @@ export default function AdminPlaylistTab() {
         }
     };
 
+    const handleCreatePlaylist = async () => {
+        if (!newPlaylistName.trim()) return;
+        try {
+            const { error } = await supabase.from('playlists').insert([{
+                establishment_id: establishment.id,
+                name: newPlaylistName,
+                is_active: playlists.length === 0 // Make active if it's the first one
+            }]);
+
+            if (error) throw error;
+            await fetchPlaylists();
+            setNewPlaylistName('');
+            setShowCreateModal(false);
+        } catch (error) {
+            alert('Erro ao criar playlist: ' + error.message);
+        }
+    };
+
+
+
+    const handleActivatePlaylist = async (id) => {
+        try {
+            // Deactivate all
+            await supabase
+                .from('playlists')
+                .update({ is_active: false })
+                .eq('establishment_id', establishment.id);
+
+            // Activate target
+            await supabase
+                .from('playlists')
+                .update({ is_active: true })
+                .eq('id', id);
+
+            fetchPlaylists();
+        } catch (error) {
+            alert('Erro ao ativar playlist.');
+        }
+    };
+
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white/5 p-6 rounded-xl border border-white/10">
-                <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-white">
-                    <Library className="text-neon-purple" />
-                    Playlist de Fundo
-                </h3>
-                <p className="text-gray-400 text-sm mb-6">
-                    Estas músicas tocarão aleatoriamente quando a fila de pedidos estiver vazia.
-                </p>
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+                            <Library className="text-neon-purple" />
+                            Gestão de Playlists
+                        </h3>
+                        <p className="text-gray-400 text-sm">
+                            Crie playlists diferentes para cada momento (ex: "Rock", "Lounge").
+                        </p>
+                    </div>
+                </div>
+
+                {/* PLAYLIST SELECTOR TABS */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-4 border-b border-white/10 no-scrollbar">
+                    <button
+                        onClick={() => setSelectedPlaylistId(null)}
+                        className={`px-4 py-2 rounded-lg whitespace-nowrap text-sm font-bold transition-all ${selectedPlaylistId === null
+                            ? 'bg-white text-black'
+                            : 'bg-black/30 text-gray-400 hover:text-white hover:bg-white/10'
+                            }`}
+                    >
+                        Geral (Salvas Anteriormente)
+                    </button>
+                    {playlists.map(p => (
+                        <div key={p.id} className="relative group">
+                            <button
+                                onClick={() => setSelectedPlaylistId(p.id)}
+                                className={`px-4 py-2 pr-8 rounded-lg whitespace-nowrap text-sm font-bold transition-all ${selectedPlaylistId === p.id
+                                    ? 'bg-neon-purple text-white shadow-lg shadow-neon-purple/20'
+                                    : 'bg-black/30 text-gray-400 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                {p.name}
+                                {p.is_active && <span className="ml-2 text-[10px] bg-green-500 text-black px-1.5 rounded-full">ATIVO</span>}
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleActivatePlaylist(p.id); }}
+                                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-green-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Ativar esta playlist"
+                            >
+                                <Check size={14} />
+                            </button>
+                        </div>
+                    ))}
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="px-3 py-2 rounded-lg whitespace-nowrap text-sm font-bold border border-dashed border-white/30 text-gray-400 hover:text-white hover:border-white transition-all flex items-center gap-1"
+                    >
+                        <Plus size={16} /> Nova Playlist
+                    </button>
+                </div>
+
+                {/* CREATE MODAL */}
+                {showCreateModal && (
+                    <div className="bg-black/50 p-4 rounded-lg mb-6 border border-white/10 flex gap-2 animate-in fade-in slide-in-from-top-2">
+                        <input
+                            type="text"
+                            value={newPlaylistName}
+                            onChange={e => setNewPlaylistName(e.target.value)}
+                            placeholder="Nome da Playlist (ex: Sexta Rock)"
+                            className="flex-1 bg-black/30 border border-white/20 rounded-md px-3 py-2 text-white focus:border-neon-purple outline-none"
+                            autoFocus
+                        />
+                        <button onClick={handleCreatePlaylist} className="bg-neon-purple text-white px-4 py-2 rounded-md font-bold text-sm">Criar</button>
+                        <button onClick={() => setShowCreateModal(false)} className="text-gray-400 px-3 hover:text-white">Cancelar</button>
+                    </div>
+                )}
+
+
 
                 {/* PLAYBACK MODE SELECTOR */}
                 <div className="bg-black/30 p-4 rounded-lg border border-white/5 mb-6 flex items-center justify-between">
@@ -193,17 +354,17 @@ export default function AdminPlaylistTab() {
                 {/* Saved Playlist */}
                 <div className="space-y-3">
                     <h4 className="text-sm font-bold uppercase text-gray-500 mb-2 flex justify-between">
-                        Músicas Salvas <span>{playlist.length}</span>
+                        Músicas na Playlist: {selectedPlaylistId ? playlists.find(p => p.id === selectedPlaylistId)?.name : 'Geral'} <span>{playlistItems.length}</span>
                     </h4>
 
                     {loadingList ? (
                         <div className="text-center py-4 text-gray-500">Carregando playlist...</div>
-                    ) : playlist.length === 0 ? (
+                    ) : playlistItems.length === 0 ? (
                         <div className="text-center py-8 border border-dashed border-white/10 rounded-xl text-gray-500">
-                            Nenhuma música na playlist de fundo.
+                            Playlist vazia. Adicione músicas buscando ou importando.
                         </div>
                     ) : (
-                        playlist.map((item) => (
+                        playlistItems.map((item) => (
                             <div key={item.id} className="bg-white/5 p-3 rounded-xl flex items-center gap-4 hover:border-white/20 border border-transparent transition-all">
                                 <img src={item.thumbnail_url} alt={item.title} className="w-16 h-12 object-cover rounded shadow-md opacity-70" />
                                 <div className="flex-1 min-w-0">
