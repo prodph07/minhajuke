@@ -67,6 +67,7 @@ export default function PlayerPage() {
     // Player State
     const [ready, setReady] = useState(false);
     const [muted, setMuted] = useState(false); // Try to start unmuted
+    const [retryCount, setRetryCount] = useState(0);
     const [playerState, setPlayerState] = useState(-1);
 
     // UI State
@@ -281,12 +282,52 @@ export default function PlayerPage() {
                                         videoId={nowPlaying.video_id}
                                         opts={opts}
                                         onReady={onPlayerReady}
-                                        onStateChange={onPlayerStateChange}
+                                        onStateChange={(e) => {
+                                            onPlayerStateChange(e);
+                                            // Reset retries on successful play
+                                            if (e.data === 1) {
+                                                setRetryCount(0);
+                                            }
+                                        }}
                                         onError={(e) => {
-                                            console.error('YouTube Error:', e);
-                                            // Auto-skip if video is unavailable/restricted
-                                            // Error 100, 101, 150 mean unavailable/restricted
-                                            playNext('player_error');
+                                            console.error('YouTube Error:', e.data);
+
+                                            // Error Codes:
+                                            // 2: Invalid parameter
+                                            // 5: HTML5 Error
+                                            // 100: Video not found
+                                            // 101/150: Embedded playback restricted
+
+                                            const fatalErrors = [100, 101, 150];
+                                            const isFatal = fatalErrors.includes(e.data);
+
+                                            if (isFatal) {
+                                                console.warn("Fatal Error. Skipping immediately.");
+                                                playNext('player_error_fatal');
+                                                return;
+                                            }
+
+                                            // Retry Logic for non-fatal errors (or unknown)
+                                            if (retryCount < 3) {
+                                                const nextRetry = retryCount + 1;
+                                                console.log(`Player Error encountered. Retrying... (${nextRetry}/3)`);
+                                                setRetryCount(nextRetry);
+
+                                                // Short delay before trying to play again or reload
+                                                setTimeout(() => {
+                                                    if (playerRef.current && playerRef.current.playVideo) {
+                                                        // Attempt to re-play
+                                                        playerRef.current.playVideo();
+                                                    } else {
+                                                        // If player ref is gone, force a soft reload of the component state if possible, 
+                                                        // but for now just trying playVideo is the safest "soft" retry.
+                                                        // Ideally we could toggle 'ready' to force re-render if needed.
+                                                    }
+                                                }, 2000);
+                                            } else {
+                                                console.warn("Max retries exceeded. Skipping.");
+                                                playNext('player_error_max_retries');
+                                            }
                                         }}
                                         className="w-full h-full"
                                         iframeClassName="w-full h-full object-cover"
@@ -312,12 +353,14 @@ export default function PlayerPage() {
                         )}
 
                         {/* Loading Overlay */}
-                        {(!ready || (playerState === 3 && showForceReady)) && (
+                        {(!ready || (playerState === 3 && showForceReady) || (retryCount > 0 && playerState !== 1)) && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-40">
                                 <div className="text-center mb-8">
                                     <div className="w-12 h-12 border-4 border-neon-green border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                                     <p className="text-neon-green text-xl font-bold tracking-widest">
-                                        {!ready ? 'CARREGANDO PLAYER...' : 'BUFFERING...'}
+                                        {retryCount > 0
+                                            ? `RESTAURANDO PLAYBACK (${retryCount}/3)...`
+                                            : (!ready ? 'CARREGANDO PLAYER...' : 'BUFFERING...')}
                                     </p>
                                 </div>
                                 {showForceReady && (
