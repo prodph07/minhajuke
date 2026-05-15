@@ -12,6 +12,7 @@ export default function SettingsTab({ establishment }) {
         auto_approve: true,
         welcome_message: "Peça sua música favorita!",
         ultra_performance_mode: false,
+        autoplay_muted_hack: false,
         force_reload_interval: 0,
         optimize_scale_hack: true,
         optimize_no_logs: true,
@@ -221,6 +222,24 @@ export default function SettingsTab({ establishment }) {
                                     className="sr-only peer"
                                 />
                                 <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                            </label>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
+                            <div>
+                                <span className={`block font-bold ${settings.autoplay_muted_hack ? 'text-yellow-400' : 'text-white'}`}>Autoplay Garantido (Fix TV)</span>
+                                <span className="text-xs text-gray-500">Inicia mutado para garantir autoplay e desmuta automaticamente.</span>
+                                <span className="text-xs text-yellow-500/70 block mt-1">⚡ Ative se a TV precisa de play manual ao trocar de música.</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="autoplay_muted_hack"
+                                    checked={settings.autoplay_muted_hack || false}
+                                    onChange={handleChange}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
                             </label>
                         </div>
 

@@ -69,6 +69,7 @@ export default function PlayerPage() {
     const [muted, setMuted] = useState(false); // Try to start unmuted
     const [retryCount, setRetryCount] = useState(0);
     const [playerState, setPlayerState] = useState(-1);
+    const [autoUnmuteApplied, setAutoUnmuteApplied] = useState(false); // Track if auto-unmute was done
 
     // UI State
     const [showControls, setShowControls] = useState(false);
@@ -138,6 +139,7 @@ export default function PlayerPage() {
 
     // SETTINGS
     const settings = establishment?.settings || {};
+    const autoplayMutedHack = settings.autoplay_muted_hack || false;
 
     // ULTRA PERFORMANCE STATE
     const [hideUI, setHideUI] = useState(false);
@@ -192,6 +194,24 @@ export default function PlayerPage() {
             console.log('Video CUED. Forcing play...');
             event.target.playVideo?.();
         }
+
+        // AUTO-UNMUTE HACK: When video starts playing and hack is enabled
+        if (newState === 1 && autoplayMutedHack && !autoUnmuteApplied) {
+            console.log('[Autoplay Hack] Video playing. Auto-unmuting in 500ms...');
+            setTimeout(() => {
+                try {
+                    if (playerRef.current) {
+                        playerRef.current.unMute?.();
+                        playerRef.current.setVolume?.(100);
+                        setMuted(false);
+                        setAutoUnmuteApplied(true);
+                        console.log('[Autoplay Hack] Auto-unmute successful!');
+                    }
+                } catch (e) {
+                    console.warn('[Autoplay Hack] Auto-unmute failed:', e);
+                }
+            }, 500);
+        }
     };
 
     const opts = {
@@ -203,7 +223,7 @@ export default function PlayerPage() {
             disablekb: 1,
             fs: 0,
             modestbranding: 1,
-            mute: 0,
+            mute: autoplayMutedHack ? 1 : 0, // Muted start guarantees autoplay on strict devices
             origin: window.location.origin,
             rel: 0,
             showinfo: 0,
@@ -216,9 +236,15 @@ export default function PlayerPage() {
     useEffect(() => {
         if (ready && playerRef.current && nowPlaying?.video_id) {
             console.log("New video detected. Forcing play...");
+            // Reset auto-unmute tracking for new video
+            setAutoUnmuteApplied(false);
             // Small functionality delay to ensure internal state is ready
             setTimeout(() => {
                 if (playerRef.current && playerRef.current.playVideo) {
+                    // If hack is enabled, ensure we start muted for autoplay guarantee
+                    if (autoplayMutedHack) {
+                        playerRef.current.mute?.();
+                    }
                     playerRef.current.playVideo();
                     const useScaleHack = settings.optimize_scale_hack !== false;
                     playerRef.current.setPlaybackQuality?.(useScaleHack ? 'small' : 'hd1080');
@@ -248,8 +274,8 @@ export default function PlayerPage() {
             style={{ cursor: hideUI ? 'none' : 'default' }}
         >
 
-            {/* INTERACTION OVERLAY (Browser Autoplay Policy) */}
-            {!hasInteracted && nowPlaying && (
+            {/* INTERACTION OVERLAY (Browser Autoplay Policy) - Skipped if autoplay_muted_hack is enabled */}
+            {!hasInteracted && !autoplayMutedHack && nowPlaying && (
                 <div
                     onClick={handleInteraction}
                     className="absolute inset-0 z-[100] bg-black/80 flex items-center justify-center cursor-pointer hover:bg-black/70 transition-colors"
